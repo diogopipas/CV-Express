@@ -3,9 +3,16 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import Resume from '../models/Resume';
-const pdfParse = require('pdf-parse');
 
 const router = express.Router();
+
+// Dynamically import pdf-parse to handle potential ES module issues
+let pdfParse: any = null;
+try {
+  pdfParse = require('pdf-parse');
+} catch (error) {
+  console.warn('PDF parsing not available:', error);
+}
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
@@ -110,7 +117,7 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
     await resume.save();
 
     // Process PDF to extract text and skills (async)
-    if (path.extname(req.file.originalname).toLowerCase() === '.pdf') {
+    if (path.extname(req.file.originalname).toLowerCase() === '.pdf' && pdfParse) {
       try {
         const dataBuffer = fs.readFileSync(req.file.path);
         const pdfData = await pdfParse(dataBuffer);

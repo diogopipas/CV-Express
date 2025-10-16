@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import SearchBar from '../components/SearchBar';
 import JobList from '../components/JobList';
-import FilterPanel from '../components/FilterPanel';
 import { jobService } from '../services/api';
 import { useJobStore } from '../store/useJobStore';
 
 const Home = () => {
-  const { jobs, isLoading, setJobs, setLoading, updateJob, filters, setFilters } = useJobStore();
-  const [localFilters, setLocalFilters] = useState<{ source?: string; sortBy?: string }>({});
+  const { jobs, isLoading, setJobs, setLoading, updateJob, filters } = useJobStore();
 
   useEffect(() => {
     // Load initial jobs
@@ -17,17 +15,16 @@ const Home = () => {
 
   useEffect(() => {
     // Reload when filters change
-    if (Object.keys(filters).length > 0 || Object.keys(localFilters).length > 0) {
+    if (Object.keys(filters).length > 0) {
       loadJobs();
     }
-  }, [filters, localFilters]);
+  }, [filters]);
 
   const loadJobs = async () => {
     try {
       setLoading(true);
       const response = await jobService.getJobs({
         ...filters,
-        ...localFilters,
       });
       setJobs(response.data);
     } catch (error) {
@@ -80,10 +77,6 @@ const Home = () => {
     }
   };
 
-  const handleFilterChange = (newFilters: { source?: string; sortBy?: string }) => {
-    setLocalFilters(prev => ({ ...prev, ...newFilters }));
-  };
-
   return (
     <div className="space-y-4">
       <div className="text-center space-y-2">
@@ -99,21 +92,15 @@ const Home = () => {
         <SearchBar onSearch={handleSearch} isLoading={isLoading} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <aside className="lg:col-span-1">
-          <FilterPanel onFilterChange={handleFilterChange} />
-        </aside>
-
-        <div className="lg:col-span-3">
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-              <p className="mt-4 text-muted-foreground">Loading jobs...</p>
-            </div>
-          ) : (
-            <JobList jobs={jobs} onSave={handleSave} />
-          )}
-        </div>
+      <div>
+        {isLoading ? (
+          <div className="text-center py-12">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            <p className="mt-4 text-muted-foreground">Loading jobs...</p>
+          </div>
+        ) : (
+          <JobList jobs={jobs} onSave={handleSave} />
+        )}
       </div>
     </div>
   );

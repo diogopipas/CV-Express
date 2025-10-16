@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -105,11 +105,7 @@ export const resumeService = {
   upload: async (file: File) => {
     const formData = new FormData();
     formData.append('resume', file);
-    const response = await api.post('/resumes/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post('/resumes/upload', formData);
     return response.data;
   },
 
