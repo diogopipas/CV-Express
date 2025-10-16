@@ -147,7 +147,25 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
     });
   } catch (error: any) {
     console.error('Upload error:', error);
-    res.status(500).json({ success: false, message: error.message || 'Failed to upload resume' });
+    
+    // Clean up uploaded file if database operation failed
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error('Failed to clean up file:', cleanupError);
+      }
+    }
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Failed to upload resume';
+    if (error.name === 'MongooseError' || error.name === 'MongoError') {
+      errorMessage = 'Database connection error. Please ensure MongoDB is running.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ success: false, message: errorMessage });
   }
 });
 
