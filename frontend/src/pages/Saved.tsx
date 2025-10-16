@@ -53,11 +53,11 @@ const Saved = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="text-center space-y-4">
+    <div className="space-y-4">
+      <div className="text-center space-y-2">
         <div className="flex items-center justify-center gap-3">
           <BookmarkIcon className="h-10 w-10 text-primary" />
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
             Saved Jobs
           </h1>
         </div>

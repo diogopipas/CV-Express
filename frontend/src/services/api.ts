@@ -38,6 +38,31 @@ export interface JobsResponse {
   };
 }
 
+export interface Resume {
+  _id: string;
+  filename: string;
+  originalName: string;
+  filePath: string;
+  fileSize: number;
+  uploadDate: string;
+  status: 'processing' | 'completed' | 'failed';
+  extractedSkills: string[];
+  suggestedRoles: string[];
+  searchedTitles: string[];
+  jobSearchesUsed: number;
+  jobSearchesLimit: number;
+  totalJobs: number;
+  newJobs: number;
+  appliedJobs: number;
+  successfulApplications: number;
+  failedApplications: number;
+  inQueue: number;
+  resumeUsageCount: number;
+  resumeUsageLimit: number;
+  plan: 'FREE' | 'PRO';
+  isLatest: boolean;
+}
+
 export const jobService = {
   scrape: async (params: ScrapeParams) => {
     const response = await api.post('/scrape', params);
@@ -72,6 +97,49 @@ export const jobService = {
 
   deleteJob: async (id: string) => {
     const response = await api.delete(`/jobs/${id}`);
+    return response.data;
+  },
+};
+
+export const resumeService = {
+  upload: async (file: File) => {
+    const formData = new FormData();
+    formData.append('resume', file);
+    const response = await api.post('/resumes/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  getResumes: async () => {
+    const response = await api.get('/resumes');
+    return response.data;
+  },
+
+  getLatestResume: async () => {
+    const response = await api.get('/resumes/latest');
+    return response.data;
+  },
+
+  getResume: async (id: string) => {
+    const response = await api.get(`/resumes/${id}`);
+    return response.data;
+  },
+
+  deleteResume: async (id: string) => {
+    const response = await api.delete(`/resumes/${id}`);
+    return response.data;
+  },
+
+  updateStats: async (id: string, stats: Partial<Resume>) => {
+    const response = await api.patch(`/resumes/${id}/stats`, stats);
+    return response.data;
+  },
+
+  addSearchedTitle: async (id: string, title: string) => {
+    const response = await api.post(`/resumes/${id}/search-title`, { title });
     return response.data;
   },
 };

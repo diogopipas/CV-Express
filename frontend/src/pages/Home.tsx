@@ -85,9 +85,9 @@ const Home = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+    <div className="space-y-4">
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
           Find Your Dream Job
         </h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -95,11 +95,11 @@ const Home = () => {
         </p>
       </div>
 
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg border p-6 shadow-sm">
+      <div className="bg-card/80 backdrop-blur-sm rounded-lg border p-4 shadow-sm">
         <SearchBar onSearch={handleSearch} isLoading={isLoading} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <aside className="lg:col-span-1">
           <FilterPanel onFilterChange={handleFilterChange} />
         </aside>

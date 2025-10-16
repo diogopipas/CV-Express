@@ -40,5 +40,8 @@ coverage/
 .tmp/
 temp/
 
+# Uploaded files
+backend/uploads/
+
 # Plan files (optional)
 *.plan.md

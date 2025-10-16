@@ -7,24 +7,9 @@ interface FilterPanelProps {
 
 const FilterPanel = ({ onFilterChange }: FilterPanelProps) => {
   return (
-    <div className="bg-card rounded-lg border p-4 space-y-4">
-      <h3 className="font-semibold text-sm">Filters</h3>
+    <div className="bg-card rounded-lg border p-4 space-y-3">
+      <h3 className="font-semibold text-sm">Sort Results</h3>
       
-      <div className="space-y-2">
-        <Label htmlFor="source-filter">Source</Label>
-        <Select onValueChange={(value) => onFilterChange({ source: value === 'all' ? undefined : value })}>
-          <SelectTrigger id="source-filter">
-            <SelectValue placeholder="All sources" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sources</SelectItem>
-            <SelectItem value="LinkedIn">LinkedIn</SelectItem>
-            <SelectItem value="Indeed">Indeed</SelectItem>
-            <SelectItem value="Glassdoor">Glassdoor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <div className="space-y-2">
         <Label htmlFor="sort-filter">Sort by</Label>
         <Select defaultValue="scrapedDate" onValueChange={(value) => onFilterChange({ sortBy: value })}>
