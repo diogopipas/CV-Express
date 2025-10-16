@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="briefcaseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ea580c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="white"/>
+  
+  <!-- Briefcase body -->
+  <rect x="20" y="42" width="60" height="38" rx="4" fill="url(#briefcaseGradient)" filter="url(#shadow)"/>
+  
+  <!-- Briefcase handle base -->
+  <rect x="38" y="28" width="24" height="8" rx="2" fill="url(#briefcaseGradient)"/>
+  
+  <!-- Briefcase handle -->
+  <path d="M 38 32 Q 38 22, 50 22 Q 62 22, 62 32" 
+        stroke="url(#briefcaseGradient)" 
+        stroke-width="4" 
+        fill="none" 
+        stroke-linecap="round"/>
+  
+  <!-- Briefcase lock/clasp -->
+  <rect x="47" y="52" width="6" height="8" rx="1" fill="#ffffff" opacity="0.9"/>
+  <circle cx="50" cy="56" r="2" fill="url(#briefcaseGradient)"/>
+  
+  <!-- Briefcase details (horizontal lines) -->
+  <line x1="20" y1="58" x2="80" y2="58" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+</svg>
+

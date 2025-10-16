@@ -36,12 +36,14 @@ export interface Job {
   scrapedDate: string;
   saved: boolean;
   tags: string[];
+  resumeId?: string;
 }
 
 export interface ScrapeParams {
   keyword: string;
   location: string;
   sources?: ('LinkedIn' | 'Indeed' | 'Glassdoor')[];
+  resumeId?: string;
 }
 
 export interface JobsResponse {
@@ -92,8 +94,17 @@ export const jobService = {
     source?: string;
     location?: string;
     search?: string;
+    resumeId?: string;
   }) => {
     const response = await api.get<JobsResponse>('/jobs', { params });
+    return response.data;
+  },
+
+  getJobsByResume: async (resumeId: string, params?: {
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<JobsResponse>(`/jobs/resume/${resumeId}`, { params });
     return response.data;
   },
 

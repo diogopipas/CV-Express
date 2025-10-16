@@ -1,28 +1,43 @@
 import { useState } from 'react';
-import { Upload, FileText, X, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Upload, FileText, X, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { resumeService } from '../services/api';
+import { resumeService, jobService } from '../services/api';
 import { useResumeStore } from '../store/useResumeStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useJobStore } from '../store/useJobStore';
 
 interface UploadResumeDialogProps {
   children?: React.ReactNode;
 }
 
 const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const { addResume } = useResumeStore();
+  const { setJobs, setLoading } = useJobStore();
+
+  const handleOpenDialog = () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to upload your resume');
+      navigate('/login');
+      return;
+    }
+    setOpen(true);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -52,10 +67,10 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
   };
 
   const validateAndSetFile = (file: File) => {
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
     
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Please upload a PDF or Word document');
+      toast.error('Please upload a PDF, Word document, or text file');
       return;
     }
 
@@ -75,16 +90,83 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
 
     try {
       setUploading(true);
+      
+      // Step 1: Upload the resume
       const response = await resumeService.upload(file);
-      addResume(response.data);
-      toast.success('Resume uploaded successfully!');
+      const resume = response.data;
+      addResume(resume);
+      
+      toast.success('Resume uploaded successfully!', {
+        description: 'Analyzing your skills...'
+      });
+      
       setOpen(false);
       setFile(null);
+      setUploading(false);
+      
+      // Step 2: If roles were suggested, automatically trigger job scraping
+      if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
+        setScraping(true);
+        const primaryRole = resume.suggestedRoles[0];
+        
+        toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
+          description: 'Searching across thousands of listings',
+          duration: 5000
+        });
+        
+        try {
+          // Trigger job scraping using the existing scrape endpoint
+          const scrapeResponse = await jobService.scrape({
+            keyword: primaryRole,
+            location: 'United States',
+            sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
+            resumeId: resume._id
+          });
+          
+          const jobCount = scrapeResponse.data?.length || 0;
+          
+          if (jobCount > 0) {
+            toast.success(`✅ Found ${jobCount} matching jobs!`, {
+              description: 'Redirecting to jobs page...',
+              duration: 3000
+            });
+            
+            // Navigate to jobs page
+            navigate('/jobs');
+            
+            // Fetch and display the jobs
+            setLoading(true);
+            try {
+              const jobsResponse = await jobService.getJobs({ limit: 100 });
+              setJobs(jobsResponse.data);
+            } catch (jobError) {
+              console.error('Error fetching jobs:', jobError);
+            } finally {
+              setLoading(false);
+            }
+          } else {
+          toast.warning('⚠️ No jobs found for this role', {
+            description: 'Try searching manually or with different keywords',
+            duration: 5000
+          });
+          }
+        } catch (scrapeError: any) {
+          console.error('Scraping error:', scrapeError);
+          const errorMessage = scrapeError.response?.data?.message || scrapeError.message || 'Unknown error';
+          
+          toast.warning('⚠️ Job search temporarily unavailable', {
+            description: 'Please try again or use manual search on the jobs page',
+            duration: 5000
+          });
+        } finally {
+          setScraping(false);
+        }
+      }
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error(error.response?.data?.message || 'Failed to upload resume');
-    } finally {
       setUploading(false);
+      setScraping(false);
     }
   };
 
@@ -97,16 +179,22 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children || (
-          <Button className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 group">
-            <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-            Upload Resume
-            <Sparkles className="ml-2 h-3.5 w-3.5 animate-pulse" />
-          </Button>
-        )}
-      </DialogTrigger>
+    <>
+      {children ? (
+        <div onClick={handleOpenDialog}>
+          {children}
+        </div>
+      ) : (
+        <Button 
+          onClick={handleOpenDialog}
+          className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 group"
+        >
+          <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+          Upload Resume
+          <Sparkles className="ml-2 h-3.5 w-3.5 animate-pulse" />
+        </Button>
+      )}
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg border-border/50 bg-gradient-to-b from-background to-muted/20">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
@@ -116,7 +204,7 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
             <DialogTitle className="text-2xl">Upload Your Resume</DialogTitle>
           </div>
           <DialogDescription className="text-base">
-            Upload your CV in PDF or Word format. Our AI will analyze your skills and suggest the perfect job matches.
+            Upload your CV in PDF, Word, or text format. Our AI will analyze your skills and suggest the perfect job matches.
           </DialogDescription>
         </DialogHeader>
 
@@ -161,6 +249,10 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
+                      TXT
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
                       Max 10MB
                     </div>
                   </div>
@@ -169,7 +261,7 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                   type="file"
                   id="file-upload"
                   className="hidden"
-                  accept=".pdf,.doc,.docx"
+                  accept=".pdf,.doc,.docx,.txt"
                   onChange={handleFileChange}
                 />
                 <Button
@@ -220,24 +312,24 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                 setOpen(false);
                 setFile(null);
               }}
-              disabled={uploading}
+              disabled={uploading || scraping}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={!file || uploading}
+              disabled={!file || uploading || scraping}
               className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 px-6 group"
             >
               {uploading ? (
                 <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Uploading...
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                  Start Upload
+                  Upload & Find Jobs
                   <Sparkles className="ml-2 h-3.5 w-3.5" />
                 </>
               )}
@@ -246,6 +338,7 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 };
 

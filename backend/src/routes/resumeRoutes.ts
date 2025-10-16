@@ -30,14 +30,14 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-  const allowedTypes = /pdf|doc|docx/;
+  const allowedTypes = /pdf|doc|docx|txt/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
   const mimetype = allowedTypes.test(file.mimetype);
 
-  if (extname && (mimetype || file.mimetype === 'application/msword' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')) {
+  if (extname && (mimetype || file.mimetype === 'application/msword' || file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.mimetype === 'text/plain')) {
     cb(null, true);
   } else {
-    cb(new Error('Only PDF and Word documents are allowed!'));
+    cb(new Error('Only PDF, Word documents, and text files are allowed!'));
   }
 };
 
@@ -116,8 +116,28 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
 
     await resume.save();
 
-    // Process PDF to extract text and skills (async)
-    if (path.extname(req.file.originalname).toLowerCase() === '.pdf' && pdfParse) {
+    // Process resume to extract text and skills (async)
+    const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    
+    if (fileExtension === '.txt') {
+      // Handle text file
+      try {
+        const extractedText = fs.readFileSync(req.file.path, 'utf-8');
+
+        const skills = extractSkills(extractedText);
+        const roles = suggestRoles(skills);
+
+        resume.extractedSkills = skills;
+        resume.suggestedRoles = roles;
+        resume.status = 'completed';
+        await resume.save();
+      } catch (error) {
+        console.error('Text file parsing error:', error);
+        resume.status = 'completed'; // Still mark as completed even if parsing fails
+        await resume.save();
+      }
+    } else if (fileExtension === '.pdf' && pdfParse) {
+      // Handle PDF file
       try {
         const dataBuffer = fs.readFileSync(req.file.path);
         const pdfData = await pdfParse(dataBuffer);

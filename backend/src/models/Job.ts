@@ -12,6 +12,7 @@ export interface IJob extends Document {
   scrapedDate: Date;
   saved: boolean;
   tags: string[];
+  resumeId?: mongoose.Types.ObjectId;
 }
 
 const JobSchema: Schema = new Schema({
@@ -25,7 +26,8 @@ const JobSchema: Schema = new Schema({
   postedDate: { type: Date },
   scrapedDate: { type: Date, default: Date.now },
   saved: { type: Boolean, default: false },
-  tags: [{ type: String }]
+  tags: [{ type: String }],
+  resumeId: { type: Schema.Types.ObjectId, ref: 'Resume' }
 }, {
   timestamps: true
 });
@@ -33,6 +35,7 @@ const JobSchema: Schema = new Schema({
 // Index for faster queries
 JobSchema.index({ title: 'text', company: 'text', description: 'text' });
 JobSchema.index({ source: 1, scrapedDate: -1 });
+JobSchema.index({ resumeId: 1, scrapedDate: -1 });
 
 export default mongoose.model<IJob>('Job', JobSchema);
 

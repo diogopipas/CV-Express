@@ -64,15 +64,6 @@ const Home = () => {
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
-              <Link to="/jobs">
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/10 text-base px-8"
-                >
-                  View Demo
-                </Button>
-              </Link>
             </div>
 
             {/* Stats */}

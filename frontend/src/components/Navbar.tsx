@@ -3,7 +3,6 @@ import { Briefcase, BookmarkIcon, FileText, LogOut, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
-import UploadResumeDialog from './UploadResumeDialog';
 import { useAuthStore } from '@/store/useAuthStore';
 
 const Navbar = () => {
@@ -14,7 +13,7 @@ const Navbar = () => {
   const handleLogout = () => {
     logout();
     toast.success('Logged out successfully');
-    navigate('/login');
+    navigate('/');
   };
 
   return (
@@ -50,8 +49,6 @@ const Navbar = () => {
               <BookmarkIcon className="h-4 w-4" />
               <span>Saved Jobs</span>
             </Link>
-
-            <UploadResumeDialog />
 
             {isAuthenticated ? (
               <div className="flex items-center space-x-4 border-l pl-4">

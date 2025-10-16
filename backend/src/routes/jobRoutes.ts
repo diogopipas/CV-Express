@@ -7,13 +7,13 @@ const router = express.Router();
 // POST /api/scrape - Trigger scraping
 router.post('/scrape', async (req: Request, res: Response) => {
   try {
-    const { keyword, location, sources } = req.body;
+    const { keyword, location, sources, resumeId } = req.body;
 
     if (!keyword || !location) {
       return res.status(400).json({ error: 'Keyword and location are required' });
     }
 
-    const result = await scrapeJobs({ keyword, location, sources });
+    const result = await scrapeJobs({ keyword, location, sources, resumeId });
 
     res.json({
       success: true,
@@ -36,6 +36,7 @@ router.get('/jobs', async (req: Request, res: Response) => {
       source, 
       location, 
       search,
+      resumeId,
       sortBy = 'scrapedDate',
       order = 'desc'
     } = req.query;
@@ -52,6 +53,10 @@ router.get('/jobs', async (req: Request, res: Response) => {
 
     if (search) {
       query.$text = { $search: search as string };
+    }
+
+    if (resumeId) {
+      query.resumeId = resumeId;
     }
 
     const sortOrder = order === 'asc' ? 1 : -1;
@@ -143,6 +148,44 @@ router.delete('/jobs/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Delete job error:', error);
     res.status(500).json({ error: 'Failed to delete job' });
+  }
+});
+
+// GET /api/jobs/resume/:resumeId - Get jobs for a specific resume
+router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
+  try {
+    const { resumeId } = req.params;
+    const { 
+      page = 1, 
+      limit = 100,
+      sortBy = 'scrapedDate',
+      order = 'desc'
+    } = req.query;
+
+    const query = { resumeId };
+    const sortOrder = order === 'asc' ? 1 : -1;
+    const sortOptions: any = { [sortBy as string]: sortOrder };
+
+    const jobs = await Job.find(query)
+      .sort(sortOptions)
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await Job.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: jobs,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get resume jobs error:', error);
+    res.status(500).json({ error: 'Failed to fetch resume jobs' });
   }
 });
 

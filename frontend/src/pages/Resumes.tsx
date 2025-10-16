@@ -14,21 +14,42 @@ import {
   Rocket,
   Activity,
   Award,
-  BarChart3
+  BarChart3,
+  Play
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
-import { resumeService } from '../services/api';
+import { useJobStore } from '../store/useJobStore';
+import { resumeService, jobService } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import UploadResumeDialog from '../components/UploadResumeDialog';
+import JobList from '../components/JobList';
 
 const Resumes = () => {
-  const { resumes, latestResume, setResumes, setLatestResume, removeResume } = useResumeStore();
+  const { resumes, latestResume, setResumes, setLatestResume, removeResume, addResume } = useResumeStore();
+  const { jobs, isLoading: jobsLoading, setJobs, setLoading: setJobsLoading } = useJobStore();
   const [loading, setLoading] = useState(true);
+  const [uploadingDemo, setUploadingDemo] = useState(false);
+  const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
 
   useEffect(() => {
     loadResumes();
   }, []);
+
+  useEffect(() => {
+    // Auto-select the latest resume when resumes load
+    if (resumes.length > 0 && !selectedResumeId) {
+      const latest = resumes.find(r => r.isLatest) || resumes[0];
+      setSelectedResumeId(latest._id);
+    }
+  }, [resumes]);
+
+  useEffect(() => {
+    // Load jobs when selected resume changes
+    if (selectedResumeId) {
+      loadJobsForResume(selectedResumeId);
+    }
+  }, [selectedResumeId]);
 
   const loadResumes = async () => {
     try {
@@ -52,6 +73,42 @@ const Resumes = () => {
     }
   };
 
+  const loadJobsForResume = async (resumeId: string) => {
+    try {
+      setJobsLoading(true);
+      const response = await jobService.getJobsByResume(resumeId, { limit: 100 });
+      setJobs(response.data);
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+      setJobs([]);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  const handleJobSave = async (id: string) => {
+    try {
+      const response = await jobService.toggleSave(id);
+      const updatedJob = response.data;
+      setJobs(jobs.map(job => job._id === id ? updatedJob : job));
+      toast.success(updatedJob.saved ? 'Job saved!' : 'Job unsaved');
+    } catch (error) {
+      console.error('Error toggling job save:', error);
+      toast.error('Failed to save job');
+    }
+  };
+
+  const handleJobDelete = async (id: string) => {
+    try {
+      await jobService.deleteJob(id);
+      setJobs(jobs.filter(job => job._id !== id));
+      toast.success('Job deleted');
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      toast.error('Failed to delete job');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this resume?')) {
       return;
@@ -64,6 +121,132 @@ const Resumes = () => {
     } catch (error) {
       console.error('Error deleting resume:', error);
       toast.error('Failed to delete resume');
+    }
+  };
+
+  const handleUploadDemoResume = async () => {
+    try {
+      setUploadingDemo(true);
+      
+      // Create a demo resume content
+      const demoResumeContent = `
+JOHN DOE
+Software Engineer
+Email: john.doe@example.com | Phone: (555) 123-4567 | LinkedIn: linkedin.com/in/johndoe
+
+PROFESSIONAL SUMMARY
+Results-driven Software Engineer with 5+ years of experience in full-stack development. Proven expertise in building scalable web applications using modern technologies. Strong problem-solving skills and ability to work in fast-paced environments.
+
+TECHNICAL SKILLS
+Languages: JavaScript, TypeScript, Python, Java, SQL
+Frontend: React, Vue.js, HTML5, CSS3, Tailwind CSS, Redux
+Backend: Node.js, Express, Django, Spring Boot
+Databases: MongoDB, PostgreSQL, MySQL, Redis
+Tools & Technologies: Git, Docker, Kubernetes, AWS, CI/CD, REST APIs, GraphQL
+Methodologies: Agile, Scrum, TDD, Microservices
+
+PROFESSIONAL EXPERIENCE
+
+Senior Software Engineer | TechCorp Inc. | Jan 2021 - Present
+• Led development of microservices architecture serving 1M+ users
+• Improved application performance by 40% through code optimization
+• Mentored team of 5 junior developers
+• Implemented CI/CD pipelines reducing deployment time by 60%
+• Built RESTful APIs and integrated third-party services
+
+Full Stack Developer | StartupXYZ | Jun 2019 - Dec 2020
+• Developed responsive web applications using React and Node.js
+• Designed and implemented PostgreSQL database schemas
+• Collaborated with cross-functional teams in Agile environment
+• Reduced page load time by 50% through optimization techniques
+• Implemented automated testing increasing code coverage to 85%
+
+Software Developer | Digital Solutions Co. | May 2018 - May 2019
+• Created web applications using JavaScript and Python
+• Maintained and enhanced legacy codebases
+• Participated in code reviews and team meetings
+• Fixed critical bugs improving system stability
+• Documented technical specifications and API endpoints
+
+EDUCATION
+Bachelor of Science in Computer Science
+State University | 2014 - 2018
+
+CERTIFICATIONS
+• AWS Certified Solutions Architect
+• MongoDB Certified Developer
+• Certified Scrum Master
+
+PROJECTS
+E-Commerce Platform - Built scalable platform with React, Node.js, and MongoDB handling 100K+ transactions
+Task Management System - Developed collaborative tool with real-time updates using WebSockets
+AI Chatbot - Created intelligent chatbot using Python and natural language processing
+
+ACHIEVEMENTS
+• Employee of the Year 2022 at TechCorp Inc.
+• Published article on microservices architecture in tech magazine
+• Speaker at local JavaScript meetup`;
+
+      // Create a blob from the text content
+      const blob = new Blob([demoResumeContent], { type: 'text/plain' });
+      
+      // Create a File object from the blob
+      const demoFile = new File([blob], 'Demo_Resume_John_Doe.txt', { 
+        type: 'text/plain',
+        lastModified: Date.now() 
+      });
+      
+      // Upload the demo resume
+      const response = await resumeService.upload(demoFile);
+      const resume = response.data;
+      addResume(resume);
+      
+      toast.success('🎉 Demo resume uploaded successfully!');
+      
+      // Trigger job scraping if roles were suggested
+      if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
+        const primaryRole = resume.suggestedRoles[0];
+        
+        toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
+          description: 'Searching across thousands of listings',
+          duration: 5000
+        });
+        
+        try {
+          const scrapeResponse = await jobService.scrape({
+            keyword: primaryRole,
+            location: 'United States',
+            sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
+            resumeId: resume._id
+          });
+          
+          const jobCount = scrapeResponse.data?.length || 0;
+          
+          if (jobCount > 0) {
+            toast.success(`✅ Found ${jobCount} matching jobs!`);
+            setSelectedResumeId(resume._id);
+            await loadJobsForResume(resume._id);
+          } else {
+            toast.warning('⚠️ No jobs found for this role', {
+              description: 'Try searching manually or with different keywords',
+              duration: 5000
+            });
+          }
+        } catch (scrapeError) {
+          console.error('Scraping error:', scrapeError);
+          toast.warning('⚠️ Job search temporarily unavailable', {
+            description: 'Please try again or use manual search',
+            duration: 4000
+          });
+        }
+      }
+      
+      await loadResumes();
+    } catch (error: any) {
+      console.error('Demo upload error:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload demo resume');
+    } finally {
+      setUploadingDemo(false);
     }
   };
 
@@ -131,6 +314,24 @@ const Resumes = () => {
               >
                 <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
                 Refresh
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={handleUploadDemoResume}
+                disabled={uploadingDemo}
+                className="group border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-500/10 text-purple-400"
+              >
+                {uploadingDemo ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    Try Demo
+                  </>
+                )}
               </Button>
               <UploadResumeDialog />
             </div>
@@ -228,13 +429,71 @@ const Resumes = () => {
         </div>
       )}
 
+      {/* CV Switcher - Tabs to select which resume to view */}
+      {resumes.length > 0 && (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-sm font-medium text-muted-foreground">
+              {resumes.length === 1 ? 'Your Resume' : 'Select Resume'}
+            </h3>
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {resumes.map((resume) => (
+                <button
+                  key={resume._id}
+                  onClick={() => setSelectedResumeId(resume._id)}
+                  className={`relative flex-shrink-0 px-4 py-3 rounded-xl border transition-all duration-200 ${
+                    selectedResumeId === resume._id
+                      ? 'bg-gradient-to-br from-teal-500/20 to-blue-500/20 border-teal-500/50 shadow-lg shadow-teal-500/20'
+                      : 'bg-card border-border/50 hover:border-teal-500/30 hover:bg-teal-500/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`rounded-lg p-2 ${
+                      selectedResumeId === resume._id
+                        ? 'bg-teal-500/30'
+                        : 'bg-muted'
+                    }`}>
+                      <FileText className={`h-4 w-4 ${
+                        selectedResumeId === resume._id ? 'text-teal-400' : 'text-muted-foreground'
+                      }`} />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium text-sm ${
+                          selectedResumeId === resume._id ? 'text-foreground' : 'text-muted-foreground'
+                        }`}>
+                          {resume.originalName.length > 20 
+                            ? resume.originalName.substring(0, 20) + '...' 
+                            : resume.originalName}
+                        </span>
+                        {resume.isLatest && (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-1.5 py-0">
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {resume.totalJobs} job{resume.totalJobs !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </div>
+                  {selectedResumeId === resume._id && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resume Collection */}
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h2 className="text-2xl font-bold">Your Resumes</h2>
+            <h2 className="text-2xl font-bold">Resume Details</h2>
             <p className="text-sm text-muted-foreground">
-              {resumes.length} resume{resumes.length !== 1 ? 's' : ''} in your collection
+              Detailed information about the selected resume
             </p>
           </div>
         </div>
@@ -255,12 +514,36 @@ const Resumes = () => {
                   Upload your first resume to unlock AI-powered job matching, skill extraction, and automated applications.
                 </p>
               </div>
-              <UploadResumeDialog />
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <UploadResumeDialog />
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>or</span>
+                </div>
+                <Button 
+                  variant="outline"
+                  onClick={handleUploadDemoResume}
+                  disabled={uploadingDemo}
+                  className="group border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-500/10"
+                >
+                  {uploadingDemo ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+                      Loading Demo...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-purple-400">Try Demo Resume</span>
+                      <Sparkles className="ml-2 h-3.5 w-3.5 text-purple-400 animate-pulse" />
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         ) : (
           <div className="space-y-5">
-            {resumes.map((resume, index) => (
+            {resumes.filter(resume => resume._id === selectedResumeId).map((resume, index) => (
               <div 
                 key={resume._id} 
                 className="group relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card to-card/50 hover:border-teal-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-teal-500/5"
@@ -480,6 +763,72 @@ const Resumes = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Job Listings Section - Displayed directly under resumes */}
+      <div className="space-y-5 border-t border-border/30 pt-8">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold">
+              <span className="bg-gradient-to-r from-teal-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Matching Jobs
+              </span>
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {jobs.length > 0 
+                ? `${jobs.length} job${jobs.length !== 1 ? 's' : ''} found for ${resumes.find(r => r._id === selectedResumeId)?.originalName || 'this resume'}`
+                : selectedResumeId 
+                  ? 'No jobs found for this resume yet'
+                  : 'Upload a resume to see matching jobs'}
+            </p>
+          </div>
+          {jobs.length > 0 && selectedResumeId && (
+            <Button 
+              variant="outline" 
+              onClick={() => loadJobsForResume(selectedResumeId)}
+              className="group border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-500/10"
+            >
+              <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
+              Refresh Jobs
+            </Button>
+          )}
+        </div>
+
+        {jobsLoading ? (
+          <div className="flex items-center justify-center min-h-[40vh]">
+            <div className="text-center space-y-4">
+              <div className="relative">
+                <div className="w-16 h-16 mx-auto">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 animate-spin"></div>
+                  <div className="absolute inset-1 rounded-full bg-background"></div>
+                  <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-teal-500 animate-pulse" />
+                </div>
+              </div>
+              <p className="text-muted-foreground animate-pulse">Loading matching jobs...</p>
+            </div>
+          </div>
+        ) : jobs.length > 0 ? (
+          <JobList 
+            jobs={jobs} 
+            onSave={handleJobSave} 
+            onDelete={handleJobDelete} 
+          />
+        ) : (
+          <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-12">
+            <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
+            <div className="relative flex flex-col items-center space-y-4 text-center">
+              <div className="rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-6 border border-blue-500/30">
+                <Briefcase className="h-10 w-10 text-blue-400" />
+              </div>
+              <div className="space-y-2 max-w-md">
+                <h3 className="text-lg font-semibold">No Jobs Yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Upload a resume and our AI will automatically search for matching job opportunities across multiple platforms.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
