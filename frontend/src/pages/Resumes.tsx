@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   FileText, 
@@ -9,20 +8,21 @@ import {
   XCircle, 
   Clock, 
   Target,
-  TrendingUp,
   Zap,
-  Search,
-  Briefcase
+  Briefcase,
+  Sparkles,
+  Rocket,
+  Activity,
+  Award,
+  BarChart3
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { resumeService } from '../services/api';
 import { Button } from '../components/ui/button';
-import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import UploadResumeDialog from '../components/UploadResumeDialog';
 
 const Resumes = () => {
-  const navigate = useNavigate();
   const { resumes, latestResume, setResumes, setLatestResume, removeResume } = useResumeStore();
   const [loading, setLoading] = useState(true);
 
@@ -87,283 +87,398 @@ const Resumes = () => {
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-        <p className="mt-4 text-muted-foreground">Loading resumes...</p>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 animate-spin"></div>
+              <div className="absolute inset-1 rounded-full bg-background"></div>
+              <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-teal-500 animate-pulse" />
+            </div>
+          </div>
+          <p className="text-muted-foreground animate-pulse">Preparing your resume dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
-            Auto Job Apply
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Automate job searching and applying processes with LockedIn AI
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Button variant="outline" onClick={loadResumes}>
-            <TrendingUp className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <UploadResumeDialog />
+    <div className="space-y-8 pb-12">
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-500/10 via-blue-500/10 to-purple-500/10 border border-teal-500/20 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_70%)]"></div>
+        <div className="relative p-8 md:p-12">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium">
+                <Sparkles className="h-4 w-4" />
+                AI-Powered Job Automation
+              </div>
+              <h1 className="text-4xl md:text-5xl font-bold">
+                <span className="bg-gradient-to-r from-teal-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  Search Jobs
+                </span>
+              </h1>
+              <p className="text-muted-foreground text-lg max-w-2xl">
+                Transform your job search with intelligent resume analysis and automated applications
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                onClick={loadResumes}
+                className="group border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/10"
+              >
+                <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
+                Refresh
+              </Button>
+              <UploadResumeDialog />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Overall Application Progress */}
+      {/* Stats Dashboard */}
       {latestResume && (
-        <Card className="bg-gradient-to-br from-purple-900/20 to-purple-800/20 border-purple-700/30 p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="rounded-lg bg-purple-500/20 p-2">
-              <Zap className="h-5 w-5 text-purple-400" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30">
+              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <span className="text-sm font-medium text-blue-400">Application Analytics</span>
             </div>
-            <h2 className="text-xl font-semibold">Overall Application Progress</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-purple-900/40 border-purple-700/40 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <Target className="h-5 w-5 text-purple-400" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Applications */}
+            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 p-6 hover:border-blue-500/40 transition-all duration-300 hover:scale-105">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+              <div className="relative space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
+                    <Rocket className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/40 text-xs">
+                    Total
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-blue-400">{latestResume.appliedJobs}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Applications Sent</div>
+                </div>
               </div>
-              <div className="text-3xl font-bold">{latestResume.appliedJobs}</div>
-              <div className="text-sm text-muted-foreground">Total Applications</div>
-            </Card>
+            </div>
 
-            <Card className="bg-green-900/40 border-green-700/40 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <CheckCircle className="h-5 w-5 text-green-400" />
+            {/* Successful */}
+            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-6 hover:border-emerald-500/40 transition-all duration-300 hover:scale-105">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+              <div className="relative space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
+                    <CheckCircle className="h-5 w-5 text-emerald-400" />
+                  </div>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs">
+                    Success
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-emerald-400">{latestResume.successfulApplications}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Delivered Successfully</div>
+                </div>
               </div>
-              <div className="text-3xl font-bold">{latestResume.successfulApplications}</div>
-              <div className="text-sm text-muted-foreground">Successfully Applied</div>
-            </Card>
+            </div>
 
-            <Card className="bg-red-900/40 border-red-700/40 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <XCircle className="h-5 w-5 text-red-400" />
+            {/* Failed */}
+            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/20 p-6 hover:border-rose-500/40 transition-all duration-300 hover:scale-105">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all"></div>
+              <div className="relative space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-lg bg-rose-500/20 group-hover:bg-rose-500/30 transition-colors">
+                    <XCircle className="h-5 w-5 text-rose-400" />
+                  </div>
+                  <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/40 text-xs">
+                    Failed
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-rose-400">{latestResume.failedApplications}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Need Attention</div>
+                </div>
               </div>
-              <div className="text-3xl font-bold">{latestResume.failedApplications}</div>
-              <div className="text-sm text-muted-foreground">Failed</div>
-            </Card>
+            </div>
 
-            <Card className="bg-yellow-900/40 border-yellow-700/40 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <Clock className="h-5 w-5 text-yellow-400" />
+            {/* In Queue */}
+            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-6 hover:border-amber-500/40 transition-all duration-300 hover:scale-105">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+              <div className="relative space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
+                    <Clock className="h-5 w-5 text-amber-400" />
+                  </div>
+                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-xs">
+                    Pending
+                  </Badge>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-amber-400">{latestResume.inQueue}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Queued & Processing</div>
+                </div>
               </div>
-              <div className="text-3xl font-bold">{latestResume.inQueue}</div>
-              <div className="text-sm text-muted-foreground">In Queue</div>
-            </Card>
+            </div>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Your Resumes */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Your Resumes</h2>
-          <div className="text-sm text-muted-foreground">
-            {resumes.length} resume{resumes.length !== 1 ? 's' : ''} uploaded
+      {/* Resume Collection */}
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h2 className="text-2xl font-bold">Your Resumes</h2>
+            <p className="text-sm text-muted-foreground">
+              {resumes.length} resume{resumes.length !== 1 ? 's' : ''} in your collection
+            </p>
           </div>
         </div>
 
         {resumes.length === 0 ? (
-          <Card className="p-12 text-center">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="rounded-full bg-muted p-6">
-                <FileText className="h-12 w-12 text-muted-foreground" />
+          <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-16">
+            <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
+            <div className="relative flex flex-col items-center space-y-6 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 animate-ping rounded-full bg-teal-500/20"></div>
+                <div className="relative rounded-full bg-gradient-to-br from-teal-500/20 to-blue-500/20 p-8 border border-teal-500/30">
+                  <FileText className="h-12 w-12 text-teal-400" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold">No resumes uploaded yet</h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  Upload your resume to get started with AI-powered job search and skill extraction.
+              <div className="space-y-3 max-w-md">
+                <h3 className="text-xl font-semibold">Start Your Journey</h3>
+                <p className="text-muted-foreground">
+                  Upload your first resume to unlock AI-powered job matching, skill extraction, and automated applications.
                 </p>
               </div>
               <UploadResumeDialog />
             </div>
-          </Card>
+          </div>
         ) : (
-          <div className="space-y-4">
-            {resumes.map((resume) => (
-              <Card key={resume._id} className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4 flex-1">
-                    <div className="rounded-lg bg-primary/10 p-3">
-                      <FileText className="h-6 w-6 text-primary" />
-                    </div>
-
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center space-x-3">
-                        <h3 className="font-semibold text-lg">{resume.originalName}</h3>
-                        {resume.isLatest && (
-                          <Badge className="bg-green-500/20 text-green-400 border-green-500/40">
-                            Latest
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="capitalize">
-                          {resume.plan}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="h-4 w-4" />
-                          <span>Uploaded {formatDate(resume.uploadDate)}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <FileText className="h-4 w-4" />
-                          <span>{formatFileSize(resume.fileSize)}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <CheckCircle className="h-4 w-4" />
-                          <span className="capitalize">{resume.status}</span>
+          <div className="space-y-5">
+            {resumes.map((resume, index) => (
+              <div 
+                key={resume._id} 
+                className="group relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card to-card/50 hover:border-teal-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-teal-500/5"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-teal-500/0 via-teal-500/5 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                
+                <div className="relative p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 flex-1">
+                      {/* Icon */}
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 to-blue-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                        <div className="relative rounded-xl bg-gradient-to-br from-teal-500/10 to-blue-500/10 p-3 border border-teal-500/20">
+                          <FileText className="h-7 w-7 text-teal-400" />
                         </div>
                       </div>
 
-                      {resume.status === 'completed' && (
-                        <>
-                          {/* Searched Titles */}
-                          {resume.searchedTitles.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <Search className="h-4 w-4 text-cyan-400" />
-                                <span className="font-medium">Searched Titles:</span>
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {resume.searchedTitles.map((title, index) => (
-                                  <Badge key={index} className="bg-cyan-500/20 text-cyan-400 border-cyan-500/40">
-                                    {title}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Other Suggested Roles */}
-                          {resume.suggestedRoles.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <Briefcase className="h-4 w-4 text-amber-400" />
-                                <span className="font-medium">Other Suggested Roles:</span>
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                AI-generated suggestions based on your resume content
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {resume.suggestedRoles.map((role, index) => (
-                                  <Badge key={index} variant="outline">
-                                    {role}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Skills */}
-                          {resume.extractedSkills.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="text-sm font-medium">Skills:</div>
-                              <div className="flex flex-wrap gap-2">
-                                {resume.extractedSkills.map((skill, index) => (
-                                  <Badge key={index} variant="secondary">
-                                    {skill}
-                                  </Badge>
-                                ))}
-                                {resume.extractedSkills.length > 12 && (
-                                  <Badge variant="outline">+{resume.extractedSkills.length - 12} more</Badge>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Job Stats */}
-                          <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                            <div className="space-y-1">
-                              <div className="text-2xl font-bold text-cyan-400">{resume.totalJobs}</div>
-                              <div className="text-xs text-muted-foreground">Total Jobs</div>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-2xl font-bold text-green-400">{resume.newJobs}</div>
-                              <div className="text-xs text-muted-foreground">New Jobs</div>
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-xl font-bold text-red-400">
-                                {resume.jobSearchesUsed}/{resume.jobSearchesLimit}
-                              </div>
-                              <div className="text-xs text-muted-foreground">Job Searches Used</div>
-                            </div>
+                      {/* Content */}
+                      <div className="flex-1 space-y-4">
+                        {/* Header */}
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold text-lg">{resume.originalName}</h3>
+                            {resume.isLatest && (
+                              <Badge className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/40">
+                                <Sparkles className="h-3 w-3 mr-1" />
+                                Active
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="capitalize border-teal-500/30 text-teal-400">
+                              {resume.plan}
+                            </Badge>
                           </div>
 
-                          {/* Quick Actions */}
-                          {resume.totalJobs > 0 && (
-                            <div className="pt-4 border-t">
-                              <Button 
-                                onClick={() => navigate('/')} 
-                                className="w-full bg-cyan-500 hover:bg-cyan-600"
-                              >
-                                <Search className="mr-2 h-4 w-4" />
-                                View Jobs
-                              </Button>
+                          {/* Meta Info */}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="h-3.5 w-3.5" />
+                              <span>{formatDate(resume.uploadDate)}</span>
                             </div>
-                          )}
-
-                          {/* Usage Stats */}
-                          <div className="bg-amber-900/20 border border-amber-700/30 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center space-x-2 text-sm">
-                                <FileText className="h-4 w-4 text-amber-400" />
-                                <span className="font-medium">Resume Usage</span>
-                              </div>
-                              <span className="text-sm text-muted-foreground">
-                                {resume.resumeUsageCount}/{resume.resumeUsageLimit} used ({resume.plan})
-                              </span>
+                            <div className="flex items-center gap-1.5">
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>{formatFileSize(resume.fileSize)}</span>
                             </div>
-                            <div className="flex items-center space-x-2 text-sm">
-                              <Search className="h-4 w-4 text-cyan-400" />
-                              <span className="font-medium">Job Search Limit</span>
-                              <span className="text-sm text-muted-foreground ml-auto">
-                                {resume.jobSearchesLimit} per resume ({resume.plan})
-                              </span>
+                            <div className="flex items-center gap-1.5">
+                              <Award className="h-3.5 w-3.5" />
+                              <span className="capitalize">{resume.status}</span>
                             </div>
                           </div>
+                        </div>
 
-                          {/* Upgrade CTA */}
-                          {resume.plan === 'FREE' && (
-                            <div className="bg-gradient-to-r from-amber-900/40 to-orange-900/40 border border-amber-700/40 rounded-lg p-4">
-                              <div className="flex items-start justify-between">
-                                <div className="space-y-1">
-                                  <div className="flex items-center space-x-2">
-                                    <Zap className="h-4 w-4 text-amber-400" />
-                                    <span className="font-semibold">Upgrade to Pro</span>
+                        {resume.status === 'completed' && (
+                          <>
+                            {/* Searched Titles */}
+                            {resume.searchedTitles.length > 0 && (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1 rounded bg-blue-500/20">
+                                    <Target className="h-3.5 w-3.5 text-blue-400" />
                                   </div>
-                                  <p className="text-sm text-muted-foreground">
-                                    Get unlimited job searches and up to 10 resumes. No more limits!
-                                  </p>
+                                  <span className="text-sm font-medium">Targeted Roles</span>
                                 </div>
-                                <Button size="sm" className="bg-amber-600 hover:bg-amber-700">
-                                  Upgrade Now
-                                </Button>
+                                <div className="flex flex-wrap gap-2">
+                                  {resume.searchedTitles.map((title, index) => (
+                                    <Badge 
+                                      key={index} 
+                                      className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-300 border-blue-500/40 hover:border-blue-500/60 transition-all"
+                                    >
+                                      {title}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Suggested Roles */}
+                            {resume.suggestedRoles.length > 0 && (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1 rounded bg-purple-500/20">
+                                    <Briefcase className="h-3.5 w-3.5 text-purple-400" />
+                                  </div>
+                                  <span className="text-sm font-medium">AI Suggestions</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Roles that match your profile
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {resume.suggestedRoles.slice(0, 8).map((role, index) => (
+                                    <Badge 
+                                      key={index} 
+                                      variant="outline"
+                                      className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-all"
+                                    >
+                                      {role}
+                                    </Badge>
+                                  ))}
+                                  {resume.suggestedRoles.length > 8 && (
+                                    <Badge variant="outline" className="opacity-60">
+                                      +{resume.suggestedRoles.length - 8} more
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Skills */}
+                            {resume.extractedSkills.length > 0 && (
+                              <div className="space-y-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1 rounded bg-teal-500/20">
+                                    <Zap className="h-3.5 w-3.5 text-teal-400" />
+                                  </div>
+                                  <span className="text-sm font-medium">Extracted Skills</span>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {resume.extractedSkills.slice(0, 12).map((skill, index) => (
+                                    <Badge 
+                                      key={index} 
+                                      variant="secondary"
+                                      className="text-xs bg-muted/50 hover:bg-muted transition-colors"
+                                    >
+                                      {skill}
+                                    </Badge>
+                                  ))}
+                                  {resume.extractedSkills.length > 12 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      +{resume.extractedSkills.length - 12}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Job Stats Grid */}
+                            <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
+                              <div className="text-center space-y-1">
+                                <div className="text-xl font-bold text-teal-400">{resume.totalJobs}</div>
+                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Jobs</div>
+                              </div>
+                              <div className="text-center space-y-1 border-x border-border/50">
+                                <div className="text-xl font-bold text-emerald-400">{resume.newJobs}</div>
+                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">New</div>
+                              </div>
+                              <div className="text-center space-y-1">
+                                <div className="text-xl font-bold text-blue-400">
+                                  {resume.jobSearchesUsed}/{resume.jobSearchesLimit}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Searches</div>
                               </div>
                             </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(resume._id)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                            {/* Usage Tracking */}
+                            <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 p-4 space-y-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Activity className="h-4 w-4 text-orange-400" />
+                                  <span className="font-medium">Usage Metrics</span>
+                                </div>
+                                <Badge variant="outline" className="border-orange-500/40 text-orange-400 text-xs">
+                                  {resume.plan}
+                                </Badge>
+                              </div>
+                              <div className="space-y-2 text-xs">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">Resume Applications</span>
+                                  <span className="font-medium">{resume.resumeUsageCount}/{resume.resumeUsageLimit}</span>
+                                </div>
+                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all"
+                                    style={{ width: `${(resume.resumeUsageCount / resume.resumeUsageLimit) * 100}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Upgrade CTA */}
+                            {resume.plan === 'FREE' && (
+                              <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10 border border-amber-500/30 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <Rocket className="h-4 w-4 text-amber-400" />
+                                      <span className="font-semibold text-sm">Unlock Pro Features</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                      Unlimited searches, 10 resumes, priority support
+                                    </p>
+                                  </div>
+                                  <Button 
+                                    size="sm" 
+                                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/20"
+                                  >
+                                    Upgrade
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Delete Button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(resume._id)}
+                      className="text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
         )}

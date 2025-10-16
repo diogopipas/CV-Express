@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, FileText, X } from 'lucide-react';
+import { Upload, FileText, X, Sparkles, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -100,44 +100,70 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {children || (
-          <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
-            <Upload className="mr-2 h-4 w-4" />
+          <Button className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 group">
+            <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
             Upload Resume
+            <Sparkles className="ml-2 h-3.5 w-3.5 animate-pulse" />
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg border-border/50 bg-gradient-to-b from-background to-muted/20">
         <DialogHeader>
-          <DialogTitle>Upload Your Resume</DialogTitle>
-          <DialogDescription>
-            Upload your CV in PDF or Word format. We'll extract skills and suggest relevant job titles.
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-teal-500/20 to-blue-500/20 border border-teal-500/30">
+              <Upload className="h-5 w-5 text-teal-400" />
+            </div>
+            <DialogTitle className="text-2xl">Upload Your Resume</DialogTitle>
+          </div>
+          <DialogDescription className="text-base">
+            Upload your CV in PDF or Word format. Our AI will analyze your skills and suggest the perfect job matches.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5 mt-4">
           {!file ? (
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-300 ${
                 dragActive
-                  ? 'border-primary bg-primary/5'
-                  : 'border-muted-foreground/25 hover:border-primary/50'
+                  ? 'border-teal-500 bg-teal-500/10 scale-[1.02]'
+                  : 'border-border/50 hover:border-teal-500/50 hover:bg-teal-500/5'
               }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
             >
-              <div className="flex flex-col items-center space-y-4">
-                <div className="rounded-full bg-primary/10 p-4">
-                  <Upload className="h-8 w-8 text-primary" />
+              <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_70%)]"></div>
+              <div className="relative flex flex-col items-center space-y-5">
+                <div className="relative">
+                  {dragActive && (
+                    <div className="absolute inset-0 rounded-full bg-teal-500/30 animate-ping"></div>
+                  )}
+                  <div className="relative rounded-2xl bg-gradient-to-br from-teal-500/20 to-blue-500/20 p-6 border border-teal-500/30">
+                    <Upload className={`h-10 w-10 text-teal-400 ${dragActive ? 'animate-bounce' : ''}`} />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    Drag and drop your resume here, or click to browse
+                  <p className="text-base font-semibold">
+                    Drag and drop your resume here
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    PDF or Word document (Max 10MB)
+                  <p className="text-sm text-muted-foreground">
+                    or click below to browse your files
                   </p>
+                  <div className="flex items-center gap-2 justify-center pt-2">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
+                      PDF
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
+                      DOC/DOCX
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-teal-500" />
+                      Max 10MB
+                    </div>
+                  </div>
                 </div>
                 <input
                   type="file"
@@ -149,48 +175,59 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                 <Button
                   type="button"
                   variant="outline"
+                  size="lg"
+                  className="border-teal-500/30 hover:border-teal-500 hover:bg-teal-500/10 group"
                   onClick={() => document.getElementById('file-upload')?.click()}
                 >
+                  <FileText className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
                   Browse Files
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="border rounded-lg p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-3">
-                  <div className="rounded-lg bg-primary/10 p-2">
-                    <FileText className="h-5 w-5 text-primary" />
+            <div className="relative overflow-hidden border rounded-2xl bg-gradient-to-br from-teal-500/10 to-blue-500/10 border-teal-500/30 p-5">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/20 rounded-full blur-3xl"></div>
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                  <div className="rounded-xl bg-teal-500/20 p-3 border border-teal-500/30">
+                    <FileText className="h-6 w-6 text-teal-400" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-sm font-semibold truncate">{file.name}</p>
                     <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                    <div className="flex items-center gap-1.5 pt-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-xs text-emerald-400 font-medium">Ready to upload</span>
+                    </div>
                   </div>
                 </div>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setFile(null)}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all"
                 >
                   <X className="h-4 w-4" />
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
-          <div className="flex justify-end space-x-2">
+          <div className="flex justify-end gap-3 pt-2">
             <Button
               variant="outline"
               onClick={() => {
                 setOpen(false);
                 setFile(null);
               }}
+              disabled={uploading}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
               disabled={!file || uploading}
-              className="bg-cyan-500 hover:bg-cyan-600 text-white"
+              className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 px-6 group"
             >
               {uploading ? (
                 <>
@@ -199,8 +236,9 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                 </>
               ) : (
                 <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload
+                  <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                  Start Upload
+                  <Sparkles className="ml-2 h-3.5 w-3.5" />
                 </>
               )}
             </Button>

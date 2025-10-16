@@ -6,6 +6,23 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+// Add token to requests
+api.interceptors.request.use(
+  (config) => {
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      const { state } = JSON.parse(authStorage);
+      if (state?.token) {
+        config.headers.Authorization = `Bearer ${state.token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 export interface Job {
   _id: string;
   title: string;
@@ -136,6 +153,41 @@ export const resumeService = {
 
   addSearchedTitle: async (id: string, title: string) => {
     const response = await api.post(`/resumes/${id}/search-title`, { title });
+    return response.data;
+  },
+};
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterCredentials {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  _id: string;
+  name: string;
+  email: string;
+  token: string;
+}
+
+export const authService = {
+  register: async (credentials: RegisterCredentials) => {
+    const response = await api.post<AuthResponse>('/auth/register', credentials);
+    return response.data;
+  },
+
+  login: async (credentials: LoginCredentials) => {
+    const response = await api.post<AuthResponse>('/auth/login', credentials);
+    return response.data;
+  },
+
+  getCurrentUser: async () => {
+    const response = await api.get('/auth/me');
     return response.data;
   },
 };

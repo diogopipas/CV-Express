@@ -6,6 +6,7 @@ import fs from 'fs';
 import connectDB from './config/database';
 import jobRoutes from './routes/jobRoutes';
 import resumeRoutes from './routes/resumeRoutes';
+import authRoutes from './routes/authRoutes';
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.use('/uploads', express.static(uploadsDir));
 connectDB();
 
 // Routes
+app.use('/api/auth', authRoutes);
 app.use('/api', jobRoutes);
 app.use('/api/resumes', resumeRoutes);
 
