@@ -31,7 +31,7 @@ export interface Job {
   description: string;
   salary?: string;
   jobUrl: string;
-  source: 'LinkedIn' | 'Indeed' | 'Glassdoor';
+  source: 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Adzuna';
   postedDate?: string;
   scrapedDate: string;
   saved: boolean;

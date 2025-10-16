@@ -7,7 +7,7 @@ export interface IJob extends Document {
   description: string;
   salary?: string;
   jobUrl: string;
-  source: 'LinkedIn' | 'Indeed' | 'Glassdoor';
+  source: 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Adzuna';
   postedDate?: Date;
   scrapedDate: Date;
   saved: boolean;
@@ -22,7 +22,7 @@ const JobSchema: Schema = new Schema({
   description: { type: String, required: true },
   salary: { type: String },
   jobUrl: { type: String, required: true, unique: true },
-  source: { type: String, enum: ['LinkedIn', 'Indeed', 'Glassdoor'], required: true },
+  source: { type: String, enum: ['LinkedIn', 'Indeed', 'Glassdoor', 'Adzuna'], required: true },
   postedDate: { type: Date },
   scrapedDate: { type: Date, default: Date.now },
   saved: { type: Boolean, default: false },
