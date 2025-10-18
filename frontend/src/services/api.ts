@@ -166,6 +166,17 @@ export const resumeService = {
     const response = await api.post(`/resumes/${id}/search-title`, { title });
     return response.data;
   },
+
+  getResumeDownloadUrl: (id: string) => {
+    return `${API_BASE_URL}/resumes/${id}/download`;
+  },
+
+  getResumeBlob: async (id: string) => {
+    const response = await api.get(`/resumes/${id}/download`, {
+      responseType: 'blob',
+    });
+    return response;
+  },
 };
 
 export interface LoginCredentials {

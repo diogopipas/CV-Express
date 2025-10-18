@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { 
   FileText, 
@@ -15,39 +16,69 @@ import {
   Activity,
   Award,
   BarChart3,
-  Play
+  Play,
+  X,
+  MapPin,
+  Filter,
+  Eye
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { useJobStore } from '../store/useJobStore';
 import { resumeService, jobService } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import UploadResumeDialog from '../components/UploadResumeDialog';
 import JobList from '../components/JobList';
 
 const Resumes = () => {
+  const location = useLocation();
   const { resumes, latestResume, setResumes, setLatestResume, removeResume, addResume } = useResumeStore();
   const { jobs, isLoading: jobsLoading, setJobs, setLoading: setJobsLoading } = useJobStore();
   const [loading, setLoading] = useState(true);
   const [uploadingDemo, setUploadingDemo] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [viewResumeDialogOpen, setViewResumeDialogOpen] = useState(false);
+  const [resumeToView, setResumeToView] = useState<{ id: string; name: string; url: string } | null>(null);
 
   useEffect(() => {
     loadResumes();
   }, []);
 
   useEffect(() => {
-    // Auto-select the latest resume when resumes load
-    if (resumes.length > 0 && !selectedResumeId) {
+    // Check if navigated with a specific resume ID to select
+    const state = (location as any).state as { selectedResumeId?: string } | null;
+    if (state?.selectedResumeId && resumes.length > 0) {
+      setSelectedResumeId(state.selectedResumeId);
+      // Clear the state to prevent re-selection on future visits
+      window.history.replaceState({}, document.title);
+    } else if (resumes.length > 0 && !selectedResumeId) {
+      // Auto-select the latest resume when resumes load
       const latest = resumes.find(r => r.isLatest) || resumes[0];
       setSelectedResumeId(latest._id);
     }
-  }, [resumes]);
+  }, [resumes, location]);
 
   useEffect(() => {
     // Load jobs when selected resume changes
     if (selectedResumeId) {
-      loadJobsForResume(selectedResumeId);
+      setCurrentPage(1); // Reset to page 1 when resume changes
+      setCountryFilter('all'); // Reset country filter when resume changes
+      loadJobsForResume(selectedResumeId, 1);
     }
   }, [selectedResumeId]);
 
@@ -73,16 +104,30 @@ const Resumes = () => {
     }
   };
 
-  const loadJobsForResume = async (resumeId: string) => {
+  const loadJobsForResume = async (resumeId: string, page: number = 1) => {
     try {
       setJobsLoading(true);
-      const response = await jobService.getJobsByResume(resumeId, { limit: 100 });
+      const response = await jobService.getJobsByResume(resumeId, { limit: 6, page });
       setJobs(response.data);
+      if (response.pagination) {
+        setTotalPages(response.pagination.pages);
+        setTotalJobs(response.pagination.total);
+        setCurrentPage(response.pagination.page);
+      }
     } catch (error) {
       console.error('Error loading jobs:', error);
       setJobs([]);
+      setTotalPages(1);
+      setTotalJobs(0);
     } finally {
       setJobsLoading(false);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (selectedResumeId) {
+      setCurrentPage(page);
+      loadJobsForResume(selectedResumeId, page);
     }
   };
 
@@ -109,19 +154,67 @@ const Resumes = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this resume?')) {
-      return;
-    }
+  const handleDeleteClick = (id: string, name: string) => {
+    setResumeToDelete({ id, name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!resumeToDelete) return;
 
     try {
-      await resumeService.deleteResume(id);
-      removeResume(id);
+      await resumeService.deleteResume(resumeToDelete.id);
+      removeResume(resumeToDelete.id);
       toast.success('Resume deleted successfully');
+      setDeleteDialogOpen(false);
+      setResumeToDelete(null);
     } catch (error) {
       console.error('Error deleting resume:', error);
       toast.error('Failed to delete resume');
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setResumeToDelete(null);
+  };
+
+  const handleViewResume = async (id: string) => {
+    try {
+      const resume = resumes.find(r => r._id === id);
+      if (!resume) {
+        toast.error('Resume not found');
+        return;
+      }
+
+      // Fetch the resume file with authentication
+      const response = await resumeService.getResumeBlob(id);
+      
+      // Get the content type from response headers
+      const contentType = response.headers['content-type'];
+      
+      // Create a blob URL from the response
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      
+      setResumeToView({
+        id,
+        name: resume.originalName,
+        url
+      });
+      setViewResumeDialogOpen(true);
+    } catch (error) {
+      console.error('Error viewing resume:', error);
+      toast.error('Failed to open resume. Please try again.');
+    }
+  };
+
+  const handleCloseViewResume = () => {
+    if (resumeToView?.url) {
+      window.URL.revokeObjectURL(resumeToView.url);
+    }
+    setViewResumeDialogOpen(false);
+    setResumeToView(null);
   };
 
   const handleUploadDemoResume = async () => {
@@ -225,7 +318,7 @@ ACHIEVEMENTS
           if (jobCount > 0) {
             toast.success(`✅ Found ${jobCount} matching jobs!`);
             setSelectedResumeId(resume._id);
-            await loadJobsForResume(resume._id);
+            await loadJobsForResume(resume._id, 1);
           } else {
             toast.warning('⚠️ No jobs found for this role', {
               description: 'Try searching manually or with different keywords',
@@ -266,6 +359,78 @@ ACHIEVEMENTS
     const sizes = ['Bytes', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  // Extract country from location string
+  const extractCountry = (location: string): string => {
+    if (!location) return 'Unknown';
+    
+    // Common country mappings and patterns
+    const countryPatterns: { [key: string]: string } = {
+      'United States': 'United States',
+      'USA': 'United States',
+      'US': 'United States',
+      'United Kingdom': 'United Kingdom',
+      'UK': 'United Kingdom',
+      'Canada': 'Canada',
+      'Australia': 'Australia',
+      'Germany': 'Germany',
+      'France': 'France',
+      'India': 'India',
+      'Netherlands': 'Netherlands',
+      'Spain': 'Spain',
+      'Italy': 'Italy',
+      'Brazil': 'Brazil',
+      'Mexico': 'Mexico',
+      'Singapore': 'Singapore',
+      'Ireland': 'Ireland',
+      'Switzerland': 'Switzerland',
+      'Sweden': 'Sweden',
+      'Poland': 'Poland',
+      'Portugal': 'Portugal',
+      'Austria': 'Austria',
+      'Belgium': 'Belgium',
+      'Denmark': 'Denmark',
+      'Norway': 'Norway',
+      'Finland': 'Finland',
+    };
+
+    // Check if location contains any country pattern
+    for (const [pattern, country] of Object.entries(countryPatterns)) {
+      if (location.includes(pattern)) {
+        return country;
+      }
+    }
+
+    // If no pattern matches, try to extract last part after comma
+    const parts = location.split(',').map(p => p.trim());
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1];
+      // Check if last part matches any country
+      for (const [pattern, country] of Object.entries(countryPatterns)) {
+        if (lastPart === pattern) {
+          return country;
+        }
+      }
+      return lastPart;
+    }
+
+    return location;
+  };
+
+  // Get unique countries from jobs
+  const getUniqueCountries = () => {
+    const countries = jobs.map(job => extractCountry(job.location));
+    const uniqueCountries = Array.from(new Set(countries)).sort();
+    return uniqueCountries;
+  };
+
+  // Filter jobs by country
+  const getFilteredJobs = () => {
+    if (countryFilter === 'all') {
+      return jobs;
+    }
+    return jobs.filter(job => extractCountry(job.location) === countryFilter);
   };
 
   if (loading) {
@@ -441,41 +606,53 @@ ACHIEVEMENTS
                 <button
                   key={resume._id}
                   onClick={() => setSelectedResumeId(resume._id)}
-                  className={`relative flex-shrink-0 px-4 py-3 rounded-xl border transition-all duration-200 ${
+                  className={`relative flex-shrink-0 w-64 px-4 py-3 rounded-xl border transition-all duration-200 ${
                     selectedResumeId === resume._id
                       ? 'bg-gradient-to-br from-teal-500/20 to-blue-500/20 border-teal-500/50 shadow-lg shadow-teal-500/20'
                       : 'bg-card border-border/50 hover:border-teal-500/30 hover:bg-teal-500/5'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`rounded-lg p-2 ${
-                      selectedResumeId === resume._id
-                        ? 'bg-teal-500/30'
-                        : 'bg-muted'
-                    }`}>
-                      <FileText className={`h-4 w-4 ${
-                        selectedResumeId === resume._id ? 'text-teal-400' : 'text-muted-foreground'
-                      }`} />
-                    </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-2">
-                        <span className={`font-medium text-sm ${
-                          selectedResumeId === resume._id ? 'text-foreground' : 'text-muted-foreground'
-                        }`}>
-                          {resume.originalName.length > 20 
-                            ? resume.originalName.substring(0, 20) + '...' 
-                            : resume.originalName}
-                        </span>
-                        {resume.isLatest && (
-                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-1.5 py-0">
-                            Active
-                          </Badge>
-                        )}
+                  <div className="flex items-center gap-3 justify-between">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`rounded-lg p-2 flex-shrink-0 ${
+                        selectedResumeId === resume._id
+                          ? 'bg-teal-500/30'
+                          : 'bg-muted'
+                      }`}>
+                        <FileText className={`h-4 w-4 ${
+                          selectedResumeId === resume._id ? 'text-teal-400' : 'text-muted-foreground'
+                        }`} />
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {resume.totalJobs} job{resume.totalJobs !== 1 ? 's' : ''}
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium text-sm truncate ${
+                            selectedResumeId === resume._id ? 'text-foreground' : 'text-muted-foreground'
+                          }`}>
+                            {resume.originalName.length > 20 
+                              ? resume.originalName.substring(0, 20) + '...' 
+                              : resume.originalName}
+                          </span>
+                          {resume.isLatest && (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-1.5 py-0 flex-shrink-0">
+                              Active
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {resume.totalJobs} job{resume.totalJobs !== 1 ? 's' : ''}
+                        </div>
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(resume._id, resume.originalName);
+                      }}
+                      className="p-1 rounded-md hover:bg-rose-500/20 text-muted-foreground hover:text-rose-400 transition-all flex-shrink-0"
+                      title="Delete resume"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                   {selectedResumeId === resume._id && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full"></div>
@@ -557,9 +734,13 @@ ACHIEVEMENTS
                       {/* Icon */}
                       <div className="relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 to-blue-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <div className="relative rounded-xl bg-gradient-to-br from-teal-500/10 to-blue-500/10 p-3 border border-teal-500/20">
-                          <FileText className="h-7 w-7 text-teal-400" />
-                        </div>
+                        <button
+                          onClick={() => handleViewResume(resume._id)}
+                          className="relative rounded-xl bg-gradient-to-br from-teal-500/10 to-blue-500/10 p-3 border border-teal-500/20 hover:border-teal-500/40 hover:from-teal-500/20 hover:to-blue-500/20 transition-all cursor-pointer group/icon"
+                          title="Click to view resume"
+                        >
+                          <FileText className="h-7 w-7 text-teal-400 group-hover/icon:scale-110 transition-transform" />
+                        </button>
                       </div>
 
                       {/* Content */}
@@ -594,6 +775,17 @@ ACHIEVEMENTS
                               <span className="capitalize">{resume.status}</span>
                             </div>
                           </div>
+
+                          {/* View Resume Button */}
+                          <Button
+                            onClick={() => handleViewResume(resume._id)}
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 w-fit border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/10 text-teal-400 group/btn"
+                          >
+                            <Eye className="mr-2 h-4 w-4 group-hover/btn:scale-110 transition-transform" />
+                            View Resume
+                          </Button>
                         </div>
 
                         {resume.status === 'completed' && (
@@ -754,7 +946,7 @@ ACHIEVEMENTS
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(resume._id)}
+                      onClick={() => handleDeleteClick(resume._id, resume.originalName)}
                       className="text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -768,7 +960,7 @@ ACHIEVEMENTS
       </div>
 
       {/* Job Listings Section - Displayed directly under resumes */}
-      <div className="space-y-5 border-t border-border/30 pt-8">
+      <div id="job-listings-section" className="space-y-5 border-t border-border/30 pt-8">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold">
@@ -777,8 +969,8 @@ ACHIEVEMENTS
               </span>
             </h2>
             <p className="text-sm text-muted-foreground">
-              {jobs.length > 0 
-                ? `${jobs.length} job${jobs.length !== 1 ? 's' : ''} found for ${resumes.find(r => r._id === selectedResumeId)?.originalName || 'this resume'}`
+              {totalJobs > 0 
+                ? `${totalJobs} job${totalJobs !== 1 ? 's' : ''} found for ${resumes.find(r => r._id === selectedResumeId)?.originalName || 'this resume'}`
                 : selectedResumeId 
                   ? 'No jobs found for this resume yet'
                   : 'Upload a resume to see matching jobs'}
@@ -787,7 +979,7 @@ ACHIEVEMENTS
           {jobs.length > 0 && selectedResumeId && (
             <Button 
               variant="outline" 
-              onClick={() => loadJobsForResume(selectedResumeId)}
+              onClick={() => loadJobsForResume(selectedResumeId, currentPage)}
               className="group border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-500/10"
             >
               <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
@@ -795,6 +987,44 @@ ACHIEVEMENTS
             </Button>
           )}
         </div>
+
+        {/* Country Filter */}
+        {jobs.length > 0 && getUniqueCountries().length > 1 && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-teal-500/20">
+                <MapPin className="h-4 w-4 text-teal-400" />
+              </div>
+              <span className="text-sm font-medium">Filter by Country</span>
+            </div>
+            <Select value={countryFilter} onValueChange={setCountryFilter}>
+              <SelectTrigger className="w-[250px] border-teal-500/30 focus:ring-teal-500/50">
+                <SelectValue placeholder="All countries" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    <span>All Countries</span>
+                  </div>
+                </SelectItem>
+                {getUniqueCountries().map((country) => (
+                  <SelectItem key={country} value={country}>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span>{country}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {countryFilter !== 'all' && (
+              <Badge className="bg-teal-500/20 text-teal-400 border-teal-500/40">
+                {getFilteredJobs().length} job{getFilteredJobs().length !== 1 ? 's' : ''}
+              </Badge>
+            )}
+          </div>
+        )}
 
         {jobsLoading ? (
           <div className="flex items-center justify-center min-h-[40vh]">
@@ -810,11 +1040,39 @@ ACHIEVEMENTS
             </div>
           </div>
         ) : jobs.length > 0 ? (
-          <JobList 
-            jobs={jobs} 
-            onSave={handleJobSave} 
-            onDelete={handleJobDelete} 
-          />
+          getFilteredJobs().length > 0 ? (
+            <JobList 
+              jobs={getFilteredJobs()} 
+              onSave={handleJobSave} 
+              onDelete={handleJobDelete}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          ) : (
+            <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-12">
+              <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
+              <div className="relative flex flex-col items-center space-y-4 text-center">
+                <div className="rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 p-6 border border-amber-500/30">
+                  <MapPin className="h-10 w-10 text-amber-400" />
+                </div>
+                <div className="space-y-2 max-w-md">
+                  <h3 className="text-lg font-semibold">No Jobs in {countryFilter}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Try selecting a different country or view all countries to see available jobs.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setCountryFilter('all')}
+                  className="border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-500/10"
+                >
+                  <Filter className="mr-2 h-4 w-4" />
+                  Show All Countries
+                </Button>
+              </div>
+            </div>
+          )
         ) : (
           <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-12">
             <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
@@ -832,6 +1090,97 @@ ACHIEVEMENTS
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] border-rose-500/20">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="rounded-full bg-rose-500/20 p-3 border border-rose-500/30">
+                <Trash2 className="h-6 w-6 text-rose-400" />
+              </div>
+              <DialogTitle className="text-xl">Delete Resume</DialogTitle>
+            </div>
+            <DialogDescription className="text-base pt-2">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">
+                {resumeToDelete?.name}
+              </span>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-4 my-2">
+            <div className="flex items-start gap-3">
+              <XCircle className="h-5 w-5 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <p className="font-medium text-rose-400">This will permanently delete:</p>
+                <ul className="text-muted-foreground space-y-1 ml-1">
+                  <li>• The resume file and all extracted data</li>
+                  <li>• All associated job listings</li>
+                  <li>• Application history and statistics</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDeleteCancel}
+              className="border-border/50 hover:bg-muted"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleDeleteConfirm}
+              className="bg-rose-500 hover:bg-rose-600 text-white"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Resume
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Resume Dialog */}
+      <Dialog open={viewResumeDialogOpen} onOpenChange={(open) => !open && handleCloseViewResume()}>
+        <DialogContent className="max-w-6xl h-[90vh] border-teal-500/20 p-0 flex flex-col">
+          <DialogHeader className="p-6 pb-0">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-teal-500/20 p-3 border border-teal-500/30">
+                <FileText className="h-6 w-6 text-teal-400" />
+              </div>
+              <div className="flex-1">
+                <DialogTitle className="text-xl">{resumeToView?.name}</DialogTitle>
+                <DialogDescription className="text-sm">
+                  Your uploaded resume document
+                </DialogDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCloseViewResume}
+                className="border-border/50 hover:bg-muted"
+              >
+                Close
+              </Button>
+            </div>
+          </DialogHeader>
+          
+          <div className="flex-1 p-6 pt-4 overflow-hidden">
+            {resumeToView?.url && (
+              <iframe
+                src={resumeToView.url}
+                className="w-full h-full rounded-lg border border-border/50"
+                title="Resume Preview"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

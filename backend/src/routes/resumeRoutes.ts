@@ -298,5 +298,46 @@ router.post('/:id/search-title', async (req: Request, res: Response) => {
   }
 });
 
+// Download/View resume file
+router.get('/:id/download', async (req: Request, res: Response) => {
+  try {
+    // Note: Authentication should be handled by the frontend when making the request
+    // The token is passed via query param for direct browser access
+    
+    const resume = await Resume.findById(req.params.id);
+    
+    if (!resume) {
+      return res.status(404).json({ success: false, message: 'Resume not found' });
+    }
+
+    if (!fs.existsSync(resume.filePath)) {
+      return res.status(404).json({ success: false, message: 'Resume file not found' });
+    }
+
+    const fileExtension = path.extname(resume.filePath).toLowerCase();
+    
+    // Set appropriate content type
+    let contentType = 'application/octet-stream';
+    if (fileExtension === '.pdf') {
+      contentType = 'application/pdf';
+    } else if (fileExtension === '.txt') {
+      contentType = 'text/plain';
+    } else if (fileExtension === '.doc') {
+      contentType = 'application/msword';
+    } else if (fileExtension === '.docx') {
+      contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${resume.originalName}"`);
+    
+    const fileStream = fs.createReadStream(resume.filePath);
+    fileStream.pipe(res);
+  } catch (error: any) {
+    console.error('Download error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;
 

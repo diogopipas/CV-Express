@@ -121,7 +121,7 @@ PORT=5001
 ✅ **Real Job Listings** - From Adzuna API  
 ✅ **Working Links** - Direct to actual job postings  
 ✅ **Salary Data** - When available from source  
-✅ **Multi-Country** - US, UK, CA, AU, DE, FR, IN  
+✅ **Multi-Country** - 24 countries supported (PT, ES, BR, UK, DE, FR, IT, NL, PL, AT, BE, CH, CA, AU, NZ, IN, SG, ZA, MX, RU, US)  
 ✅ **50 Jobs Per Search** - Maximum from Adzuna  
 ✅ **5,000 Free Calls** - Per month  
 ✅ **Automatic Fallback** - To mock if API fails  

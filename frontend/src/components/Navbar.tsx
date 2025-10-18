@@ -1,14 +1,16 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, BookmarkIcon, FileText, LogOut, User } from 'lucide-react';
+import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useThemeStore } from '@/store/useThemeStore';
 
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const { theme, toggleTheme } = useThemeStore();
 
   const handleLogout = () => {
     logout();
@@ -49,6 +51,20 @@ const Navbar = () => {
               <BookmarkIcon className="h-4 w-4" />
               <span>Saved Jobs</span>
             </Link>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="flex items-center"
+              aria-label="Toggle theme"
+            >
+              {theme === 'light' ? (
+                <Moon className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+            </Button>
 
             {isAuthenticated ? (
               <div className="flex items-center space-x-4 border-l pl-4">

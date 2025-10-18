@@ -32,51 +32,47 @@ const JobCard = ({ job, onSave, onDelete }: JobCardProps) => {
   };
 
   return (
-    <Card className="group hover:shadow-lg transition-all duration-200 hover:border-primary/50">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="text-lg line-clamp-2 group-hover:text-primary transition-colors">
+    <Card className="group hover:shadow-lg transition-all duration-200 hover:border-primary/50 flex flex-col h-full">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition-colors">
               {job.title}
             </CardTitle>
-            <CardDescription className="mt-2 flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              {job.company}
+            <CardDescription className="mt-1 flex items-center gap-1.5 text-xs">
+              <Building2 className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{job.company}</span>
             </CardDescription>
           </div>
-          <span className={cn('px-2.5 py-1 rounded-full text-xs font-medium', getSourceColor(job.source))}>
+          <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0', getSourceColor(job.source))}>
             {job.source}
           </span>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-3">
-        <div className="flex items-center text-sm text-muted-foreground">
-          <MapPin className="mr-2 h-4 w-4" />
-          {job.location}
+      <CardContent className="space-y-2 py-0 flex-1">
+        <div className="flex items-center text-xs text-muted-foreground">
+          <MapPin className="mr-1.5 h-3 w-3 flex-shrink-0" />
+          <span className="truncate">{job.location}</span>
         </div>
 
         {job.salary && (
-          <div className="flex items-center text-sm text-muted-foreground">
-            <DollarSign className="mr-2 h-4 w-4" />
-            {job.salary}
+          <div className="flex items-center text-xs text-muted-foreground">
+            <DollarSign className="mr-1.5 h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{job.salary}</span>
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground line-clamp-3">
+        <p className="text-xs text-muted-foreground line-clamp-2">
           {job.description}
         </p>
-
-        <div className="text-xs text-muted-foreground">
-          Scraped: {formatDate(job.scrapedDate)}
-        </div>
       </CardContent>
 
-      <CardFooter className="flex justify-between gap-2">
-        <Button variant="outline" size="sm" asChild className="flex-1">
+      <CardFooter className="flex justify-between gap-1.5 pt-3">
+        <Button variant="outline" size="sm" asChild className="flex-1 h-8 text-xs">
           <a href={job.jobUrl} target="_blank" rel="noopener noreferrer">
-            View Job
-            <ExternalLink className="ml-2 h-3 w-3" />
+            View
+            <ExternalLink className="ml-1 h-3 w-3" />
           </a>
         </Button>
         
@@ -85,8 +81,9 @@ const JobCard = ({ job, onSave, onDelete }: JobCardProps) => {
             variant={job.saved ? "default" : "outline"}
             size="sm"
             onClick={() => onSave(job._id)}
+            className="h-8 w-8 p-0"
           >
-            <Bookmark className={cn("h-4 w-4", job.saved && "fill-current")} />
+            <Bookmark className={cn("h-3.5 w-3.5", job.saved && "fill-current")} />
           </Button>
         )}
 
@@ -95,8 +92,9 @@ const JobCard = ({ job, onSave, onDelete }: JobCardProps) => {
             variant="outline"
             size="sm"
             onClick={() => onDelete(job._id)}
+            className="h-8 w-8 p-0"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         )}
       </CardFooter>

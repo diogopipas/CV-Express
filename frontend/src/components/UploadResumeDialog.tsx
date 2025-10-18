@@ -96,6 +96,9 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
       const resume = response.data;
       addResume(resume);
       
+      // Navigate immediately to resumes page to show the uploaded CV
+      navigate('/resumes', { state: { selectedResumeId: resume._id } });
+      
       toast.success('Resume uploaded successfully!', {
         description: 'Analyzing your skills...'
       });
@@ -127,23 +130,9 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
           
           if (jobCount > 0) {
             toast.success(`✅ Found ${jobCount} matching jobs!`, {
-              description: 'Redirecting to jobs page...',
+              description: 'View them in your resume tab',
               duration: 3000
             });
-            
-            // Navigate to jobs page
-            navigate('/jobs');
-            
-            // Fetch and display the jobs
-            setLoading(true);
-            try {
-              const jobsResponse = await jobService.getJobs({ limit: 100 });
-              setJobs(jobsResponse.data);
-            } catch (jobError) {
-              console.error('Error fetching jobs:', jobError);
-            } finally {
-              setLoading(false);
-            }
           } else {
           toast.warning('⚠️ No jobs found for this role', {
             description: 'Try searching manually or with different keywords',

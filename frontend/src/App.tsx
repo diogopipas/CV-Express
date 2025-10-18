@@ -6,8 +6,12 @@ import Resumes from './pages/Resumes';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Navbar from './components/Navbar';
+import { ThemeProvider } from './components/ThemeProvider';
+import { useThemeStore } from './store/useThemeStore';
 
-function App() {
+function AppContent() {
+  const { theme } = useThemeStore();
+  
   return (
     <Router>
       <Routes>
@@ -32,8 +36,16 @@ function App() {
           }
         />
       </Routes>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" theme={theme} />
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 }
 

@@ -90,7 +90,13 @@ You should see in the console:
 - **Actual job links** that work
 - **Salary information** when available
 - **Professional descriptions**
-- **Multi-country support** (US, UK, CA, AU, etc.)
+- **Multi-country support** - 24 countries including:
+  - 🇵🇹 Portugal, 🇪🇸 Spain, 🇧🇷 Brazil
+  - 🇬🇧 UK, 🇩🇪 Germany, 🇫🇷 France, 🇮🇹 Italy
+  - 🇳🇱 Netherlands, 🇵🇱 Poland, 🇦🇹 Austria, 🇧🇪 Belgium, 🇨🇭 Switzerland
+  - 🇨🇦 Canada, 🇺🇸 USA, 🇦🇺 Australia, 🇳🇿 New Zealand
+  - 🇮🇳 India, 🇸🇬 Singapore, 🇿🇦 South Africa
+  - 🇲🇽 Mexico, 🇷🇺 Russia
 
 ## Common Issues
 

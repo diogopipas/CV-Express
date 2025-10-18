@@ -50,13 +50,14 @@ export const scrapeAdzuna = async (keyword: string, location: string): Promise<J
   }
 
   try {
-    // Determine country code from location (default to US)
+    // Determine country code from location (default to GB)
     const country = getCountryCode(location);
     
     // Build API URL
     const url = `${ADZUNA_BASE_URL}/${country}/search/1`;
     
     console.log(`Fetching jobs from Adzuna API for "${keyword}" in "${location}"...`);
+    console.log(`🌍 Detected country code: ${country.toUpperCase()}`);
     
     // Make API request
     const response = await axios.get<AdzunaResponse>(url, {
@@ -122,22 +123,155 @@ export const scrapeAdzuna = async (keyword: string, location: string): Promise<J
 const getCountryCode = (location: string): string => {
   const locationLower = location.toLowerCase();
   
-  if (locationLower.includes('uk') || locationLower.includes('united kingdom') || locationLower.includes('london') || locationLower.includes('manchester')) {
+  // Portugal 🇵🇹
+  if (locationLower.includes('portugal') || locationLower.includes('lisbon') || locationLower.includes('lisboa') || 
+      locationLower.includes('porto') || locationLower.includes('braga') || locationLower.includes('coimbra') ||
+      locationLower.includes('faro') || locationLower.includes('aveiro')) {
+    return 'pt';
+  }
+  
+  // Spain 🇪🇸
+  if (locationLower.includes('spain') || locationLower.includes('españa') || locationLower.includes('madrid') || 
+      locationLower.includes('barcelona') || locationLower.includes('valencia') || locationLower.includes('seville') ||
+      locationLower.includes('sevilla') || locationLower.includes('bilbao') || locationLower.includes('malaga')) {
+    return 'es';
+  }
+  
+  // Brazil 🇧🇷
+  if (locationLower.includes('brazil') || locationLower.includes('brasil') || locationLower.includes('são paulo') ||
+      locationLower.includes('sao paulo') || locationLower.includes('rio de janeiro') || locationLower.includes('brasília') ||
+      locationLower.includes('brasilia') || locationLower.includes('belo horizonte') || locationLower.includes('curitiba')) {
+    return 'br';
+  }
+  
+  // United Kingdom 🇬🇧
+  if (locationLower.includes('uk') || locationLower.includes('united kingdom') || locationLower.includes('london') || 
+      locationLower.includes('manchester') || locationLower.includes('birmingham') || locationLower.includes('edinburgh') ||
+      locationLower.includes('glasgow') || locationLower.includes('liverpool') || locationLower.includes('bristol')) {
     return 'gb';
-  } else if (locationLower.includes('canada') || locationLower.includes('toronto') || locationLower.includes('vancouver')) {
-    return 'ca';
-  } else if (locationLower.includes('australia') || locationLower.includes('sydney') || locationLower.includes('melbourne')) {
-    return 'au';
-  } else if (locationLower.includes('india') || locationLower.includes('bangalore') || locationLower.includes('mumbai')) {
-    return 'in';
-  } else if (locationLower.includes('germany') || locationLower.includes('berlin') || locationLower.includes('munich')) {
+  }
+  
+  // Germany 🇩🇪
+  if (locationLower.includes('germany') || locationLower.includes('deutschland') || locationLower.includes('berlin') || 
+      locationLower.includes('munich') || locationLower.includes('münchen') || locationLower.includes('hamburg') ||
+      locationLower.includes('cologne') || locationLower.includes('köln') || locationLower.includes('frankfurt')) {
     return 'de';
-  } else if (locationLower.includes('france') || locationLower.includes('paris')) {
+  }
+  
+  // France 🇫🇷
+  if (locationLower.includes('france') || locationLower.includes('paris') || locationLower.includes('lyon') ||
+      locationLower.includes('marseille') || locationLower.includes('toulouse') || locationLower.includes('nice') ||
+      locationLower.includes('nantes') || locationLower.includes('strasbourg')) {
     return 'fr';
   }
   
-  // Default to US
-  return 'us';
+  // Italy 🇮🇹
+  if (locationLower.includes('italy') || locationLower.includes('italia') || locationLower.includes('rome') || 
+      locationLower.includes('roma') || locationLower.includes('milan') || locationLower.includes('milano') ||
+      locationLower.includes('naples') || locationLower.includes('napoli') || locationLower.includes('turin') ||
+      locationLower.includes('torino') || locationLower.includes('florence') || locationLower.includes('firenze')) {
+    return 'it';
+  }
+  
+  // Netherlands 🇳🇱
+  if (locationLower.includes('netherlands') || locationLower.includes('holland') || locationLower.includes('amsterdam') ||
+      locationLower.includes('rotterdam') || locationLower.includes('the hague') || locationLower.includes('utrecht') ||
+      locationLower.includes('eindhoven')) {
+    return 'nl';
+  }
+  
+  // Poland 🇵🇱
+  if (locationLower.includes('poland') || locationLower.includes('polska') || locationLower.includes('warsaw') ||
+      locationLower.includes('warszawa') || locationLower.includes('krakow') || locationLower.includes('kraków') ||
+      locationLower.includes('wroclaw') || locationLower.includes('wrocław') || locationLower.includes('gdansk')) {
+    return 'pl';
+  }
+  
+  // Austria 🇦🇹
+  if (locationLower.includes('austria') || locationLower.includes('österreich') || locationLower.includes('vienna') ||
+      locationLower.includes('wien') || locationLower.includes('salzburg') || locationLower.includes('graz') ||
+      locationLower.includes('innsbruck')) {
+    return 'at';
+  }
+  
+  // Belgium 🇧🇪
+  if (locationLower.includes('belgium') || locationLower.includes('belgique') || locationLower.includes('belgië') ||
+      locationLower.includes('brussels') || locationLower.includes('bruxelles') || locationLower.includes('antwerp') ||
+      locationLower.includes('antwerpen') || locationLower.includes('ghent') || locationLower.includes('bruges')) {
+    return 'be';
+  }
+  
+  // Switzerland 🇨🇭
+  if (locationLower.includes('switzerland') || locationLower.includes('schweiz') || locationLower.includes('suisse') ||
+      locationLower.includes('zurich') || locationLower.includes('zürich') || locationLower.includes('geneva') ||
+      locationLower.includes('genève') || locationLower.includes('basel') || locationLower.includes('bern')) {
+    return 'ch';
+  }
+  
+  // Canada 🇨🇦
+  if (locationLower.includes('canada') || locationLower.includes('toronto') || locationLower.includes('vancouver') ||
+      locationLower.includes('montreal') || locationLower.includes('montréal') || locationLower.includes('calgary') ||
+      locationLower.includes('ottawa') || locationLower.includes('edmonton')) {
+    return 'ca';
+  }
+  
+  // Australia 🇦🇺
+  if (locationLower.includes('australia') || locationLower.includes('sydney') || locationLower.includes('melbourne') ||
+      locationLower.includes('brisbane') || locationLower.includes('perth') || locationLower.includes('adelaide') ||
+      locationLower.includes('canberra')) {
+    return 'au';
+  }
+  
+  // New Zealand 🇳🇿
+  if (locationLower.includes('new zealand') || locationLower.includes('auckland') || locationLower.includes('wellington') ||
+      locationLower.includes('christchurch') || locationLower.includes('hamilton') || locationLower.includes('dunedin')) {
+    return 'nz';
+  }
+  
+  // India 🇮🇳
+  if (locationLower.includes('india') || locationLower.includes('bangalore') || locationLower.includes('bengaluru') ||
+      locationLower.includes('mumbai') || locationLower.includes('delhi') || locationLower.includes('hyderabad') ||
+      locationLower.includes('chennai') || locationLower.includes('pune') || locationLower.includes('kolkata')) {
+    return 'in';
+  }
+  
+  // Singapore 🇸🇬
+  if (locationLower.includes('singapore')) {
+    return 'sg';
+  }
+  
+  // South Africa 🇿🇦
+  if (locationLower.includes('south africa') || locationLower.includes('johannesburg') || locationLower.includes('cape town') ||
+      locationLower.includes('durban') || locationLower.includes('pretoria') || locationLower.includes('port elizabeth')) {
+    return 'za';
+  }
+  
+  // Mexico 🇲🇽
+  if (locationLower.includes('mexico') || locationLower.includes('méxico') || locationLower.includes('mexico city') ||
+      locationLower.includes('guadalajara') || locationLower.includes('monterrey') || locationLower.includes('puebla')) {
+    return 'mx';
+  }
+  
+  // Russia 🇷🇺
+  if (locationLower.includes('russia') || locationLower.includes('москва') || locationLower.includes('moscow') ||
+      locationLower.includes('st petersburg') || locationLower.includes('saint petersburg') || locationLower.includes('novosibirsk')) {
+    return 'ru';
+  }
+  
+  // United States 🇺🇸 (check last as fallback for common city names)
+  if (locationLower.includes('usa') || locationLower.includes('united states') || locationLower.includes('america') ||
+      locationLower.includes('new york') || locationLower.includes('los angeles') || locationLower.includes('chicago') ||
+      locationLower.includes('houston') || locationLower.includes('phoenix') || locationLower.includes('philadelphia') ||
+      locationLower.includes('san antonio') || locationLower.includes('san diego') || locationLower.includes('dallas') ||
+      locationLower.includes('san jose') || locationLower.includes('austin') || locationLower.includes('jacksonville') ||
+      locationLower.includes('san francisco') || locationLower.includes('seattle') || locationLower.includes('denver') ||
+      locationLower.includes('washington') || locationLower.includes('boston') || locationLower.includes('atlanta') ||
+      locationLower.includes('miami') || locationLower.includes('detroit') || locationLower.includes('portland')) {
+    return 'us';
+  }
+  
+  // Default to GB if no match found
+  return 'gb';
 };
 
 // Helper function to format salary
