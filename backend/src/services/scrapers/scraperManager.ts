@@ -3,6 +3,9 @@ import { scrapeIndeed } from './indeedScraper';
 import { scrapeGlassdoor } from './glassdoorScraper';
 import { scrapeMockJobs } from './mockScraper';
 import { scrapeAdzuna } from './adzunaScraper';
+import { scrapeArbeitnow } from './arbeitnowScraper';
+import { scrapeJSearch } from './jsearchScraper';
+import { deduplicateJobs } from './deduplicator';
 import Job from '../../models/Job';
 
 interface ScrapeParams {
@@ -10,18 +13,151 @@ interface ScrapeParams {
   location: string;
   sources?: ('LinkedIn' | 'Indeed' | 'Glassdoor')[];
   resumeId?: string;
+  useCache?: boolean; // Enable cache for demo resumes
 }
 
-// Toggle between mock, Adzuna API, and Puppeteer scrapers
-const USE_MOCK_SCRAPER = process.env.USE_MOCK_SCRAPER === 'true'; // Default to false (use real APIs)
-const USE_ADZUNA_API = process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY; // Auto-detect if Adzuna is configured
+interface JobListing {
+  title: string;
+  company: string;
+  location: string;
+  description: string;
+  salary?: string;
+  jobUrl: string;
+  source: string;
+  postedDate?: Date;
+}
 
-export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'Indeed', 'Glassdoor'], resumeId }: ScrapeParams) => {
-  const allJobs: any[] = [];
+// API Configuration - Auto-detect which APIs are configured
+const USE_MOCK_SCRAPER = process.env.USE_MOCK_SCRAPER === 'true'; // Default to false (use real APIs)
+const USE_ADZUNA_API = !!(process.env.ADZUNA_APP_ID && process.env.ADZUNA_API_KEY);
+const USE_ARBEITNOW_API = process.env.USE_ARBEITNOW_API !== 'false'; // Default to true (no API key needed)
+const USE_JSEARCH_API = !!(process.env.JSEARCH_API_KEY && process.env.USE_JSEARCH_API !== 'false');
+
+// Cache configuration - can be customized via environment variable
+const CACHE_TTL_HOURS = parseInt(process.env.JOB_CACHE_TTL_HOURS || '24', 10); // Default: Cache jobs for 24 hours
+
+/**
+ * Check if cached jobs exist for the given keyword and location
+ * Returns cached jobs if they exist and are recent (within TTL)
+ */
+const getCachedJobs = async (keyword: string, location: string) => {
+  const cacheExpiryTime = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
+  
+  // Find recent jobs for this keyword/location combination
+  // We look for jobs without a resumeId (template jobs) or with any resumeId
+  // that were scraped recently
+  const cachedJobs = await Job.find({
+    $or: [
+      { title: new RegExp(keyword, 'i') },
+      { description: new RegExp(keyword, 'i') }
+    ],
+    location: new RegExp(location, 'i'),
+    scrapedDate: { $gte: cacheExpiryTime }
+  })
+    .sort({ scrapedDate: -1 })
+    .limit(50); // Limit to 50 jobs for performance
+
+  if (cachedJobs.length > 0) {
+    console.log(`💾 Found ${cachedJobs.length} cached jobs for "${keyword}" in "${location}"`);
+    return cachedJobs;
+  }
+
+  return null;
+};
+
+/**
+ * Clone cached jobs and associate them with a new resumeId
+ */
+const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
+  const clonedJobs = [];
+  
+  for (const job of cachedJobs) {
+    try {
+      // Check if this exact job URL is already associated with this resumeId
+      if (resumeId) {
+        const existingJob = await Job.findOne({ 
+          jobUrl: job.jobUrl,
+          resumeId 
+        });
+        
+        if (existingJob) {
+          clonedJobs.push(existingJob);
+          continue;
+        }
+      }
+      
+      // Create a new job instance with the same data but new resumeId
+      const jobData = {
+        title: job.title,
+        company: job.company,
+        location: job.location,
+        description: job.description,
+        salary: job.salary,
+        jobUrl: job.jobUrl,
+        source: job.source,
+        postedDate: job.postedDate,
+        scrapedDate: new Date(),
+        saved: false,
+        tags: job.tags || [],
+        requirements: job.requirements || [],
+        benefits: job.benefits || [],
+        employmentType: job.employmentType,
+        applicationDeadline: job.applicationDeadline,
+        resumeId: resumeId
+      };
+      
+      // Try to find existing job with same URL
+      const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
+      
+      if (existingJob) {
+        // If job exists but without this resumeId, update it
+        if (resumeId && (!existingJob.resumeId || existingJob.resumeId.toString() !== resumeId)) {
+          // We can't update the resumeId if it's already set to a different one
+          // So we just return the existing job
+          clonedJobs.push(existingJob);
+        } else {
+          clonedJobs.push(existingJob);
+        }
+      } else {
+        // Create new job
+        const newJob = await Job.create(jobData);
+        clonedJobs.push(newJob);
+      }
+    } catch (error) {
+      console.error('Error cloning job:', error);
+    }
+  }
+  
+  return clonedJobs;
+};
+
+export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'Indeed', 'Glassdoor'], resumeId, useCache = true }: ScrapeParams) => {
+  const allJobs: JobListing[] = [];
   const errors: any[] = [];
 
+  // Check cache first if enabled
+  if (useCache) {
+    const cachedJobs = await getCachedJobs(keyword, location);
+    
+    if (cachedJobs && cachedJobs.length > 0) {
+      console.log('✨ Using cached jobs to save API resources');
+      const clonedJobs = await cloneCachedJobs(cachedJobs, resumeId);
+      
+      return {
+        jobs: clonedJobs,
+        count: clonedJobs.length,
+        newCount: 0,
+        existingCount: clonedJobs.length,
+        usedCache: true,
+        errors: undefined
+      };
+    }
+    
+    console.log('📥 No cached jobs found, fetching fresh data...');
+  }
+
+  // Check if using mock scraper
   if (USE_MOCK_SCRAPER) {
-    // Use mock scraper for testing
     console.log('🎭 Using MOCK scraper for testing (set USE_MOCK_SCRAPER=false to use real APIs)');
     
     try {
@@ -31,20 +167,106 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
       console.error('Mock scraper error:', error);
       errors.push({ source: 'Mock', error: error.message });
     }
-  } else if (USE_ADZUNA_API) {
-    // Use Adzuna API (preferred real scraper)
-    console.log('🌟 Using Adzuna API for real job listings');
+  } else {
+    // Multi-API mode: Run all enabled APIs in parallel
+    console.log('🚀 Multi-API job search initiated...');
     
-    try {
-      const adzunaJobs = await scrapeAdzuna(keyword, location);
-      allJobs.push(...adzunaJobs);
-      console.log(`✅ Adzuna API: Successfully fetched ${adzunaJobs.length} jobs`);
-    } catch (error: any) {
-      console.error('❌ Adzuna API error:', error.message);
-      errors.push({ source: 'Adzuna', error: error.message });
+    const enabledApis: string[] = [];
+    if (USE_ADZUNA_API) enabledApis.push('Adzuna');
+    if (USE_ARBEITNOW_API) enabledApis.push('Arbeitnow');
+    if (USE_JSEARCH_API) enabledApis.push('JSearch');
+    
+    console.log(`📡 Active APIs: ${enabledApis.join(', ') || 'None (will use fallback)'}`);
+    
+    // Build array of scraper promises
+    const scraperPromises: Promise<JobListing[]>[] = [];
+    
+    if (USE_ADZUNA_API) {
+      scraperPromises.push(
+        scrapeAdzuna(keyword, location).catch((error: any) => {
+          console.error('❌ Adzuna error:', error.message);
+          errors.push({ source: 'Adzuna', error: error.message });
+          return [];
+        })
+      );
+    }
+    
+    if (USE_ARBEITNOW_API) {
+      scraperPromises.push(
+        scrapeArbeitnow(keyword, location).catch((error: any) => {
+          console.error('❌ Arbeitnow error:', error.message);
+          errors.push({ source: 'Arbeitnow', error: error.message });
+          return [];
+        })
+      );
+    }
+    
+    if (USE_JSEARCH_API) {
+      scraperPromises.push(
+        scrapeJSearch(keyword, location).catch((error: any) => {
+          console.error('❌ JSearch error:', error.message);
+          errors.push({ source: 'JSearch', error: error.message });
+          return [];
+        })
+      );
+    }
+    
+    // If no APIs are configured, try Puppeteer scrapers as fallback
+    if (scraperPromises.length === 0) {
+      console.log('⚠️ No job APIs configured. Trying Puppeteer scrapers...');
+      console.log('💡 Tip: Set up Adzuna, Arbeitnow, or JSearch for better results');
       
-      // Fallback to mock scraper if Adzuna fails
-      console.log('⚠️ Falling back to mock scraper...');
+      if (sources.includes('LinkedIn')) {
+        scraperPromises.push(
+          scrapeLinkedIn(keyword, location).catch((error: any) => {
+            errors.push({ source: 'LinkedIn', error: error.message });
+            return [];
+          })
+        );
+      }
+
+      if (sources.includes('Indeed')) {
+        scraperPromises.push(
+          scrapeIndeed(keyword, location).catch((error: any) => {
+            errors.push({ source: 'Indeed', error: error.message });
+            return [];
+          })
+        );
+      }
+
+      if (sources.includes('Glassdoor')) {
+        scraperPromises.push(
+          scrapeGlassdoor(keyword, location).catch((error: any) => {
+            errors.push({ source: 'Glassdoor', error: error.message });
+            return [];
+          })
+        );
+      }
+    }
+    
+    // Execute all scrapers in parallel
+    console.log(`⏳ Running ${scraperPromises.length} scrapers in parallel...`);
+    const results = await Promise.all(scraperPromises);
+    
+    // Flatten results
+    for (const jobList of results) {
+      allJobs.push(...jobList);
+    }
+    
+    console.log(`📦 Collected ${allJobs.length} total jobs before deduplication`);
+    
+    // Deduplicate jobs from multiple sources
+    if (allJobs.length > 0) {
+      const deduplicationResult = deduplicateJobs(allJobs);
+      allJobs.length = 0; // Clear array
+      allJobs.push(...deduplicationResult.uniqueJobs);
+      
+      console.log(`✨ After deduplication: ${allJobs.length} unique jobs`);
+    }
+    
+    // Fallback to mock if all APIs failed
+    if (allJobs.length === 0 && errors.length > 0) {
+      console.log('⚠️ All scrapers failed or returned no results. Falling back to mock scraper...');
       try {
         const mockJobs = await scrapeMockJobs(keyword, location);
         allJobs.push(...mockJobs);
@@ -53,53 +275,13 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
         errors.push({ source: 'Mock Fallback', error: mockError.message });
       }
     }
-  } else {
-    // Use Puppeteer scrapers (original implementation)
-    console.log('🌐 Using Puppeteer scrapers (LinkedIn, Indeed, Glassdoor)');
-    console.log('⚠️ Note: These may fail due to anti-bot protection. Consider setting up Adzuna API.');
-    
-    const scrapePromises = [];
-
-    if (sources.includes('LinkedIn')) {
-      scrapePromises.push(
-        scrapeLinkedIn(keyword, location)
-          .then(jobs => allJobs.push(...jobs))
-          .catch(error => errors.push({ source: 'LinkedIn', error: error.message }))
-      );
-    }
-
-    if (sources.includes('Indeed')) {
-      scrapePromises.push(
-        scrapeIndeed(keyword, location)
-          .then(jobs => allJobs.push(...jobs))
-          .catch(error => errors.push({ source: 'Indeed', error: error.message }))
-      );
-    }
-
-    if (sources.includes('Glassdoor')) {
-      scrapePromises.push(
-        scrapeGlassdoor(keyword, location)
-          .then(jobs => allJobs.push(...jobs))
-          .catch(error => errors.push({ source: 'Glassdoor', error: error.message }))
-      );
-    }
-
-    await Promise.all(scrapePromises);
-    
-    // If all Puppeteer scrapers failed, fallback to mock
-    if (allJobs.length === 0 && errors.length > 0) {
-      console.log('⚠️ All Puppeteer scrapers failed. Falling back to mock scraper...');
-      try {
-        const mockJobs = await scrapeMockJobs(keyword, location);
-        allJobs.push(...mockJobs);
-      } catch (mockError: any) {
-        console.error('Mock scraper fallback error:', mockError);
-      }
-    }
   }
 
   // Save jobs to database (avoid duplicates)
   const savedJobs = [];
+  let newJobsCount = 0;
+  let existingJobsCount = 0;
+  
   for (const job of allJobs) {
     try {
       const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
@@ -108,6 +290,7 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
         const jobData = resumeId ? { ...job, resumeId } : job;
         const newJob = await Job.create(jobData);
         savedJobs.push(newJob);
+        newJobsCount++;
       } else {
         // Update existing job with resumeId if provided and not already set
         if (resumeId && !existingJob.resumeId) {
@@ -115,15 +298,21 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
           await existingJob.save();
         }
         savedJobs.push(existingJob);
+        existingJobsCount++;
       }
     } catch (error) {
       console.error('Error saving job:', error);
     }
   }
 
+  console.log(`📊 Job Summary: ${newJobsCount} new, ${existingJobsCount} existing, ${savedJobs.length} total saved`);
+
   return {
     jobs: savedJobs,
     count: savedJobs.length,
+    newCount: newJobsCount,
+    existingCount: existingJobsCount,
+    usedCache: false,
     errors: errors.length > 0 ? errors : undefined
   };
 };

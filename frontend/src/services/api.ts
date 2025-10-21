@@ -37,6 +37,10 @@ export interface Job {
   saved: boolean;
   tags: string[];
   resumeId?: string;
+  requirements: string[];
+  benefits: string[];
+  employmentType?: 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary';
+  applicationDeadline?: string;
 }
 
 export interface ScrapeParams {
@@ -82,8 +86,72 @@ export interface Resume {
   isLatest: boolean;
 }
 
+export interface Note {
+  text: string;
+  date: string;
+  type: 'general' | 'interview' | 'follow-up' | 'offer' | 'rejection';
+}
+
+export interface Contact {
+  name: string;
+  email?: string;
+  phone?: string;
+  role?: string;
+}
+
+export interface TimelineEvent {
+  action: string;
+  date: string;
+  details?: string;
+}
+
+export interface Application {
+  _id: string;
+  userId: string;
+  jobId: Job;
+  resumeId: Resume;
+  status: 'pending' | 'applied' | 'interviewing' | 'offered' | 'rejected' | 'accepted' | 'withdrawn';
+  appliedDate: string;
+  coverLetter?: string;
+  notes: Note[];
+  interviewDate?: string;
+  salaryOffered?: string;
+  contacts: Contact[];
+  documents: string[];
+  timeline: TimelineEvent[];
+  priority: 'low' | 'medium' | 'high';
+  tags: string[];
+  submissionMethod: 'cv_express_extension' | 'manual' | 'external';
+  externalApplicationId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationStats {
+  total: number;
+  pending: number;
+  applied: number;
+  interviewing: number;
+  offered: number;
+  rejected: number;
+  accepted: number;
+  successRate: number;
+  avgResponseTime: number;
+}
+
+export interface ApplicationsResponse {
+  success: boolean;
+  data: Application[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
 export const jobService = {
-  scrape: async (params: ScrapeParams) => {
+  scrape: async (params: ScrapeParams & { useCache?: boolean }) => {
     const response = await api.post('/scrape', params);
     return response.data;
   },
@@ -210,6 +278,61 @@ export const authService = {
 
   getCurrentUser: async () => {
     const response = await api.get('/auth/me');
+    return response.data;
+  },
+};
+
+export const applicationService = {
+  create: async (data: {
+    jobId: string;
+    resumeId: string;
+    coverLetter?: string;
+    submissionMethod?: 'cv_express_extension' | 'manual' | 'external';
+  }) => {
+    const response = await api.post('/applications', data);
+    return response.data;
+  },
+
+  getApplications: async (params?: {
+    status?: string;
+    priority?: string;
+    search?: string;
+    sortBy?: string;
+    order?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const response = await api.get<ApplicationsResponse>('/applications', { params });
+    return response.data;
+  },
+
+  getApplication: async (id: string) => {
+    const response = await api.get(`/applications/${id}`);
+    return response.data;
+  },
+
+  updateStatus: async (id: string, status: string) => {
+    const response = await api.patch(`/applications/${id}/status`, { status });
+    return response.data;
+  },
+
+  updateApplication: async (id: string, updates: Partial<Application>) => {
+    const response = await api.patch(`/applications/${id}`, updates);
+    return response.data;
+  },
+
+  addNote: async (id: string, note: { text: string; type?: string }) => {
+    const response = await api.post(`/applications/${id}/notes`, note);
+    return response.data;
+  },
+
+  deleteApplication: async (id: string) => {
+    const response = await api.delete(`/applications/${id}`);
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get<{ success: boolean; data: ApplicationStats }>('/applications/stats');
     return response.data;
   },
 };

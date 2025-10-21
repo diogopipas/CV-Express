@@ -7,18 +7,36 @@ const router = express.Router();
 // POST /api/scrape - Trigger scraping
 router.post('/scrape', async (req: Request, res: Response) => {
   try {
-    const { keyword, location, sources, resumeId } = req.body;
+    const { keyword, location, sources, resumeId, useCache = true } = req.body;
 
     if (!keyword || !location) {
       return res.status(400).json({ error: 'Keyword and location are required' });
     }
 
-    const result = await scrapeJobs({ keyword, location, sources, resumeId });
+    const result = await scrapeJobs({ keyword, location, sources, resumeId, useCache });
+
+    // Create a more informative message
+    let message = `Found ${result.count} ${result.count === 1 ? 'job' : 'jobs'}`;
+    
+    if (result.usedCache) {
+      message += ` (from cache)`;
+    } else if (result.newCount !== undefined && result.existingCount !== undefined) {
+      if (result.newCount > 0 && result.existingCount > 0) {
+        message += ` (${result.newCount} new, ${result.existingCount} already saved)`;
+      } else if (result.newCount > 0) {
+        message += ` (all new)`;
+      } else if (result.existingCount > 0) {
+        message += ` (all already saved)`;
+      }
+    }
 
     res.json({
       success: true,
-      message: `Scraped ${result.count} jobs`,
+      message: message,
       data: result.jobs,
+      newCount: result.newCount,
+      existingCount: result.existingCount,
+      usedCache: result.usedCache,
       errors: result.errors
     });
   } catch (error) {

@@ -101,6 +101,23 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
+    // Check if user already has 5 resumes
+    const resumeCount = await Resume.countDocuments();
+    if (resumeCount >= 5) {
+      // Clean up the uploaded file since we won't save it
+      if (fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.error('Failed to clean up file:', cleanupError);
+        }
+      }
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You have reached the maximum limit of 5 CVs. Please delete an existing CV before uploading a new one.' 
+      });
+    }
+
     // Set all other resumes as not latest
     await Resume.updateMany({}, { isLatest: false });
 

@@ -26,26 +26,34 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }: Pagination
         pages.push(i);
       }
     } else {
-      // Always show first page
+      // Always maintain consistent width by showing exactly 7 elements
+      // Format: [1] [ellipsis/2] [pages] [pages] [pages] [ellipsis/last-1] [last]
+      
       pages.push(1);
 
-      if (currentPage > 3) {
+      if (currentPage <= 3) {
+        // Near start: 1 2 3 4 ... last-1 last
+        for (let i = 2; i <= 4; i++) {
+          pages.push(i);
+        }
+        pages.push('ellipsis-end');
+        pages.push(totalPages - 1);
+      } else if (currentPage >= totalPages - 2) {
+        // Near end: 1 2 ... last-3 last-2 last-1 last
+        pages.push(2);
         pages.push('ellipsis-start');
-      }
-
-      // Show pages around current page
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      if (currentPage < totalPages - 2) {
+        for (let i = totalPages - 3; i <= totalPages - 1; i++) {
+          pages.push(i);
+        }
+      } else {
+        // Middle: 1 ... current-1 current current+1 ... last
+        pages.push('ellipsis-start');
+        pages.push(currentPage - 1);
+        pages.push(currentPage);
+        pages.push(currentPage + 1);
         pages.push('ellipsis-end');
       }
 
-      // Always show last page
       pages.push(totalPages);
     }
 
@@ -57,6 +65,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }: Pagination
   return (
     <div className="flex items-center justify-center gap-2 py-4">
       <Button
+        type="button"
         variant="outline"
         size="sm"
         onClick={(e) => handlePageChange(currentPage - 1, e)}
@@ -70,6 +79,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }: Pagination
         if (typeof page === 'string') {
           return (
             <Button
+              type="button"
               key={`${page}-${index}`}
               variant="ghost"
               size="sm"
@@ -83,6 +93,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }: Pagination
 
         return (
           <Button
+            type="button"
             key={page}
             variant={currentPage === page ? 'default' : 'outline'}
             size="sm"
@@ -99,6 +110,7 @@ export const Pagination = ({ currentPage, totalPages, onPageChange }: Pagination
       })}
 
       <Button
+        type="button"
         variant="outline"
         size="sm"
         onClick={(e) => handlePageChange(currentPage + 1, e)}

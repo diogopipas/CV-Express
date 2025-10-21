@@ -7,7 +7,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface SearchBarProps {
-  onSearch: (keyword: string, location: string, sources: string[]) => void;
+  onSearch: (keyword: string, location: string, sources: ('LinkedIn' | 'Indeed' | 'Glassdoor')[]) => void;
   isLoading?: boolean;
 }
 
@@ -93,7 +93,7 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
   const [useCustomLocation, setUseCustomLocation] = useState(false);
 
   // Sources
-  const [sources, setSources] = useState<string[]>(['LinkedIn', 'Indeed', 'Glassdoor']);
+  const [sources, setSources] = useState<('LinkedIn' | 'Indeed' | 'Glassdoor')[]>(['LinkedIn', 'Indeed', 'Glassdoor']);
 
   // Reset sub-selections when parent changes
   useEffect(() => {
@@ -136,7 +136,7 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
     }
   };
 
-  const toggleSource = (source: string) => {
+  const toggleSource = (source: 'LinkedIn' | 'Indeed' | 'Glassdoor') => {
     setSources(prev =>
       prev.includes(source)
         ? prev.filter(s => s !== source)

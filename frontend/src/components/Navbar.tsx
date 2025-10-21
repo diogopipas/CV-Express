@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun } from 'lucide-react';
+import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun, Inbox } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -24,7 +24,7 @@ const Navbar = () => {
         <div className="flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center space-x-2">
             <Briefcase className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+            <span className="text-xl font-bold text-foreground">
               CV-Express
             </span>
           </Link>
@@ -39,6 +39,17 @@ const Navbar = () => {
             >
               <FileText className="h-4 w-4" />
               <span>Search Jobs</span>
+            </Link>
+            
+            <Link
+              to="/applications"
+              className={cn(
+                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
+                location.pathname === '/applications' ? 'text-primary' : 'text-muted-foreground'
+              )}
+            >
+              <Inbox className="h-4 w-4" />
+              <span>Applications</span>
             </Link>
             
             <Link

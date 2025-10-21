@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, FileText, X, Sparkles, CheckCircle2, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Sparkles, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,7 +13,8 @@ import { Button } from './ui/button';
 import { resumeService, jobService } from '../services/api';
 import { useResumeStore } from '../store/useResumeStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { useJobStore } from '../store/useJobStore';
+import { useLoadingStore } from '../store/useLoadingStore';
+import SubscriptionPlansDialog from './SubscriptionPlansDialog';
 
 interface UploadResumeDialogProps {
   children?: React.ReactNode;
@@ -22,13 +23,13 @@ interface UploadResumeDialogProps {
 const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+  const { resumes } = useResumeStore();
   const [open, setOpen] = useState(false);
+  const [showSubscriptionPlans, setShowSubscriptionPlans] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [scraping, setScraping] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const { addResume } = useResumeStore();
-  const { setJobs, setLoading } = useJobStore();
+  const { setLoading } = useLoadingStore();
 
   const handleOpenDialog = () => {
     if (!isAuthenticated) {
@@ -36,7 +37,31 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
       navigate('/login');
       return;
     }
-    setOpen(true);
+    
+    // Check if user has reached the 5 CV limit
+    if (resumes.length >= 5) {
+      // Show subscription plans to upgrade or prompt to delete
+      setShowSubscriptionPlans(true);
+    } else {
+      // User has less than 5 CVs, proceed directly to upload
+      setOpen(true);
+    }
+  };
+
+  const handlePlanSelected = (plan: 'free' | 'pro' | 'enterprise') => {
+    setShowSubscriptionPlans(false);
+    
+    if (plan === 'free') {
+      toast.info('Free plan - Please delete a CV to upload a new one', {
+        description: 'Free plan allows up to 5 CVs'
+      });
+    } else {
+      toast.success(`${plan.charAt(0).toUpperCase() + plan.slice(1)} plan selected!`, {
+        description: 'Enjoy unlimited CVs and features'
+      });
+      // Open the upload dialog after upgrading to paid plan
+      setOpen(true);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -89,15 +114,13 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
     }
 
     try {
-      setUploading(true);
+      // Show global loading overlay
+      setLoading(true, 'Uploading Resume...', 'Analyzing your resume and extracting skills');
       
       // Step 1: Upload the resume
       const response = await resumeService.upload(file);
       const resume = response.data;
       addResume(resume);
-      
-      // Navigate immediately to resumes page to show the uploaded CV
-      navigate('/resumes', { state: { selectedResumeId: resume._id } });
       
       toast.success('Resume uploaded successfully!', {
         description: 'Analyzing your skills...'
@@ -105,12 +128,14 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
       
       setOpen(false);
       setFile(null);
-      setUploading(false);
       
       // Step 2: If roles were suggested, automatically trigger job scraping
+      let scrapedJobs = [];
       if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
-        setScraping(true);
         const primaryRole = resume.suggestedRoles[0];
+        
+        // Update loading message for job search
+        setLoading(true, `Finding ${primaryRole} Jobs...`, 'Searching across multiple job platforms for the best matches');
         
         toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
           description: 'Searching across thousands of listings',
@@ -123,15 +148,22 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
             keyword: primaryRole,
             location: 'United States',
             sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
-            resumeId: resume._id
+            resumeId: resume._id,
+            useCache: true // Use cache for uploaded resumes to save API resources
           });
           
           const jobCount = scrapeResponse.data?.length || 0;
+          const usedCache = scrapeResponse.usedCache || false;
+          scrapedJobs = scrapeResponse.data || [];
           
           if (jobCount > 0) {
-            toast.success(`✅ Found ${jobCount} matching jobs!`, {
-              description: 'View them in your resume tab',
-              duration: 3000
+            const description = usedCache 
+              ? 'Loaded from cache (instant results!)'
+              : `${scrapeResponse.message || ''} - Displaying results now`;
+            
+            toast.success(`✅ Saved ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`, {
+              description: description,
+              duration: 4000
             });
           } else {
           toast.warning('⚠️ No jobs found for this role', {
@@ -141,21 +173,28 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
           }
         } catch (scrapeError: any) {
           console.error('Scraping error:', scrapeError);
-          const errorMessage = scrapeError.response?.data?.message || scrapeError.message || 'Unknown error';
           
           toast.warning('⚠️ Job search temporarily unavailable', {
             description: 'Please try again or use manual search on the jobs page',
             duration: 5000
           });
-        } finally {
-          setScraping(false);
         }
       }
+      
+      // Hide loading overlay
+      setLoading(false);
+      
+      // Navigate to jobs page with the new resume selected and jobs data
+      navigate('/jobs', { 
+        state: { 
+          newResumeId: resume._id,
+          scrapedJobs: scrapedJobs
+        } 
+      });
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error(error.response?.data?.message || 'Failed to upload resume');
-      setUploading(false);
-      setScraping(false);
+      setLoading(false);
     }
   };
 
@@ -183,6 +222,16 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
           <Sparkles className="ml-2 h-3.5 w-3.5 animate-pulse" />
         </Button>
       )}
+      
+      {/* Subscription Plans Dialog */}
+      <SubscriptionPlansDialog
+        open={showSubscriptionPlans}
+        onOpenChange={setShowSubscriptionPlans}
+        onPlanSelected={handlePlanSelected}
+        title="CV Limit Reached"
+        description="You've reached the 5 CV limit on the Free plan. Upgrade to Pro for unlimited CVs or delete an existing CV."
+      />
+
       <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg border-border/50 bg-gradient-to-b from-background to-muted/20">
         <DialogHeader>
@@ -301,27 +350,17 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
                 setOpen(false);
                 setFile(null);
               }}
-              disabled={uploading || scraping}
             >
               Cancel
             </Button>
             <Button
               onClick={handleUpload}
-              disabled={!file || uploading || scraping}
+              disabled={!file}
               className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 px-6 group"
             >
-              {uploading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                  Upload & Find Jobs
-                  <Sparkles className="ml-2 h-3.5 w-3.5" />
-                </>
-              )}
+              <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+              Upload & Find Jobs
+              <Sparkles className="ml-2 h-3.5 w-3.5" />
             </Button>
           </div>
         </div>

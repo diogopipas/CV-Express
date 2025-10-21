@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { BookmarkIcon, MapPin, Filter } from 'lucide-react';
 import JobList from '../components/JobList';
@@ -6,6 +6,7 @@ import { jobService } from '../services/api';
 import { useJobStore } from '../store/useJobStore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Saved = () => {
   const { savedJobs, isLoading, setSavedJobs, setLoading, updateJob, removeJob } = useJobStore();
@@ -13,6 +14,7 @@ const Saved = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [paginatedJobs, setPaginatedJobs] = useState<typeof savedJobs>([]);
   const [countryFilter, setCountryFilter] = useState<string>('all');
+  const jobListRef = useRef<HTMLDivElement>(null);
   const JOBS_PER_PAGE = 6;
 
   useEffect(() => {
@@ -116,6 +118,15 @@ const Saved = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+    // Scroll to top of job list after a brief delay to ensure content updates
+    setTimeout(() => {
+      if (jobListRef.current) {
+        const yOffset = -20; // Small offset to keep some space at the top
+        const element = jobListRef.current;
+        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    }, 50);
   };
 
   // Reset to page 1 when country filter changes
@@ -152,7 +163,7 @@ const Saved = () => {
 
   return (
     <div className="space-y-4">
-      <div className="text-center space-y-2">
+      <div ref={jobListRef} className="text-center space-y-2">
         <div className="flex items-center justify-center gap-3">
           <BookmarkIcon className="h-10 w-10 text-primary" />
           <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
@@ -207,8 +218,7 @@ const Saved = () => {
 
       {isLoading ? (
         <div className="text-center py-12">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-          <p className="mt-4 text-muted-foreground">Loading saved jobs...</p>
+          <LoadingSpinner size="md" text="Loading saved jobs..." />
         </div>
       ) : savedJobs.length === 0 ? (
         <div className="text-center py-20">

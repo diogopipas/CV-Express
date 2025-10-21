@@ -7,12 +7,16 @@ export interface IJob extends Document {
   description: string;
   salary?: string;
   jobUrl: string;
-  source: 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Adzuna';
+  source: 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Adzuna' | 'Arbeitnow' | 'JSearch' | 'Mock';
   postedDate?: Date;
   scrapedDate: Date;
   saved: boolean;
   tags: string[];
   resumeId?: mongoose.Types.ObjectId;
+  requirements: string[];
+  benefits: string[];
+  employmentType?: 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary';
+  applicationDeadline?: Date;
 }
 
 const JobSchema: Schema = new Schema({
@@ -22,12 +26,19 @@ const JobSchema: Schema = new Schema({
   description: { type: String, required: true },
   salary: { type: String },
   jobUrl: { type: String, required: true, unique: true },
-  source: { type: String, enum: ['LinkedIn', 'Indeed', 'Glassdoor', 'Adzuna'], required: true },
+  source: { type: String, enum: ['LinkedIn', 'Indeed', 'Glassdoor', 'Adzuna', 'Arbeitnow', 'JSearch', 'Mock'], required: true },
   postedDate: { type: Date },
   scrapedDate: { type: Date, default: Date.now },
   saved: { type: Boolean, default: false },
   tags: [{ type: String }],
-  resumeId: { type: Schema.Types.ObjectId, ref: 'Resume' }
+  resumeId: { type: Schema.Types.ObjectId, ref: 'Resume' },
+  requirements: [{ type: String }],
+  benefits: [{ type: String }],
+  employmentType: { 
+    type: String, 
+    enum: ['full-time', 'part-time', 'contract', 'internship', 'temporary']
+  },
+  applicationDeadline: { type: Date }
 }, {
   timestamps: true
 });

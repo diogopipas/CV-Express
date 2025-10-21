@@ -4,48 +4,50 @@
 
 @layer base {
   :root {
-    --background: 30 40% 96%;
-    --foreground: 20 15% 15%;
-    --card: 35 50% 98%;
-    --card-foreground: 20 15% 15%;
-    --popover: 35 50% 98%;
-    --popover-foreground: 20 15% 15%;
-    --primary: 28 85% 55%;
+    /* Modern Purple-Cyan Theme - Light Mode */
+    --background: 250 100% 98%;
+    --foreground: 250 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 250 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 250 30% 15%;
+    --primary: 270 80% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 35 45% 88%;
-    --secondary-foreground: 20 15% 20%;
-    --muted: 35 30% 90%;
-    --muted-foreground: 25 10% 45%;
-    --accent: 32 90% 65%;
-    --accent-foreground: 20 15% 15%;
-    --destructive: 0 84.2% 60.2%;
+    --secondary: 190 80% 50%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 250 40% 96%;
+    --muted-foreground: 250 20% 45%;
+    --accent: 280 85% 92%;
+    --accent-foreground: 270 80% 30%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 30 25% 85%;
-    --input: 30 25% 85%;
-    --ring: 28 85% 55%;
-    --radius: 0.5rem;
+    --border: 250 30% 88%;
+    --input: 250 30% 88%;
+    --ring: 270 80% 60%;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 25 20% 12%;
-    --foreground: 35 15% 90%;
-    --card: 25 25% 15%;
-    --card-foreground: 35 15% 90%;
-    --popover: 25 25% 15%;
-    --popover-foreground: 35 15% 90%;
-    --primary: 28 85% 60%;
+    /* Modern Purple-Cyan Theme - Dark Mode */
+    --background: 250 40% 8%;
+    --foreground: 250 10% 95%;
+    --card: 250 35% 11%;
+    --card-foreground: 250 10% 95%;
+    --popover: 250 35% 11%;
+    --popover-foreground: 250 10% 95%;
+    --primary: 270 75% 65%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 25 20% 22%;
-    --secondary-foreground: 35 15% 90%;
-    --muted: 25 20% 22%;
-    --muted-foreground: 30 10% 60%;
-    --accent: 32 80% 55%;
-    --accent-foreground: 35 15% 90%;
-    --destructive: 0 62.8% 50%;
+    --secondary: 190 75% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 250 30% 15%;
+    --muted-foreground: 250 15% 65%;
+    --accent: 280 70% 20%;
+    --accent-foreground: 270 80% 80%;
+    --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 25 20% 25%;
-    --input: 25 20% 25%;
-    --ring: 28 85% 60%;
+    --border: 250 30% 20%;
+    --input: 250 30% 20%;
+    --ring: 270 75% 65%;
   }
 }
 
@@ -59,87 +61,47 @@
 }
 
 @layer utilities {
-  /* Grid pattern for backgrounds */
-  .bg-grid-white {
-    background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-    background-size: 20px 20px;
+  /* Custom gradient utilities for modern purple-cyan theme */
+  .bg-gradient-purple-cyan {
+    background: linear-gradient(135deg, hsl(270, 80%, 60%) 0%, hsl(190, 80%, 50%) 100%);
   }
-
-  /* Animated gradient border */
-  @keyframes gradient-shift {
-    0%, 100% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
+  
+  .bg-gradient-purple-pink {
+    background: linear-gradient(135deg, hsl(270, 80%, 60%) 0%, hsl(320, 80%, 60%) 100%);
   }
-
-  .animate-gradient {
-    background-size: 200% 200%;
-    animation: gradient-shift 8s ease infinite;
+  
+  .text-gradient-purple-cyan {
+    background: linear-gradient(135deg, hsl(270, 80%, 60%) 0%, hsl(190, 80%, 50%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
-
-  /* Fade in animation */
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  
+  .glow-purple {
+    box-shadow: 0 0 20px hsl(270, 80%, 60%, 0.3);
   }
-
-  .animate-fade-in-up {
-    animation: fade-in-up 0.6s ease-out forwards;
+  
+  .glow-cyan {
+    box-shadow: 0 0 20px hsl(190, 80%, 50%, 0.3);
   }
-
-  /* Shimmer effect */
-  @keyframes shimmer {
-    0% {
-      background-position: -1000px 0;
-    }
-    100% {
-      background-position: 1000px 0;
-    }
+  
+  /* Custom scrollbar styling */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
   }
-
-  .animate-shimmer {
-    animation: shimmer 2s infinite;
-    background: linear-gradient(
-      to right,
-      transparent 0%,
-      rgba(255, 255, 255, 0.1) 50%,
-      transparent 100%
-    );
-    background-size: 1000px 100%;
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 10px;
   }
-
-  /* Glow effect */
-  .glow-teal {
-    box-shadow: 0 0 20px rgba(20, 184, 166, 0.3),
-                0 0 40px rgba(20, 184, 166, 0.1);
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.5);
+    border-radius: 10px;
   }
-
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3),
-                0 0 40px rgba(59, 130, 246, 0.1);
-  }
-
-  /* Glassmorphism */
-  .glass {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-  }
-
-  .glass-dark {
-    background: rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.7);
   }
 }
 

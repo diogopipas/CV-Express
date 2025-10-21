@@ -1,11 +1,19 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export interface IApplicationPreferences {
+  defaultCoverLetter?: string;
+  signature?: string;
+  phone?: string;
+  linkedinUrl?: string;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
   createdAt: Date;
+  applicationPreferences?: IApplicationPreferences;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -30,6 +38,12 @@ const userSchema = new Schema<IUser>(
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't return password by default
     },
+    applicationPreferences: {
+      defaultCoverLetter: { type: String },
+      signature: { type: String },
+      phone: { type: String },
+      linkedinUrl: { type: String }
+    }
   },
   {
     timestamps: true,

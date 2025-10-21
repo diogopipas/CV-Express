@@ -4,26 +4,18 @@ import { toast } from 'sonner';
 import { 
   FileText, 
   Trash2, 
-  Calendar, 
-  CheckCircle, 
   XCircle, 
-  Clock, 
-  Target,
   Zap,
   Briefcase,
-  Sparkles,
-  Rocket,
   Activity,
-  Award,
-  BarChart3,
   Play,
-  X,
-  MapPin,
-  Filter,
-  Eye
+  Eye,
+  Search,
+  Target
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { useJobStore } from '../store/useJobStore';
+import { useLoadingStore } from '../store/useLoadingStore';
 import { resumeService, jobService } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -35,52 +27,139 @@ import {
   DialogHeader, 
   DialogTitle 
 } from '../components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import UploadResumeDialog from '../components/UploadResumeDialog';
+import LoadingSpinner from '../components/LoadingSpinner';
+import SearchBar from '../components/SearchBar';
 import JobList from '../components/JobList';
+import SubscriptionPlansDialog from '../components/SubscriptionPlansDialog';
 
 const Resumes = () => {
   const location = useLocation();
-  const { resumes, latestResume, setResumes, setLatestResume, removeResume, addResume } = useResumeStore();
-  const { jobs, isLoading: jobsLoading, setJobs, setLoading: setJobsLoading } = useJobStore();
+  const { resumes, setResumes, setLatestResume, removeResume, addResume } = useResumeStore();
+  const { jobs, setJobs, setLoading: setJobsLoading } = useJobStore();
+  const { setLoading: setGlobalLoading } = useLoadingStore();
   const [loading, setLoading] = useState(true);
   const [uploadingDemo, setUploadingDemo] = useState(false);
+  const [showSubscriptionPlans, setShowSubscriptionPlans] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalJobs, setTotalJobs] = useState(0);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
   const [viewResumeDialogOpen, setViewResumeDialogOpen] = useState(false);
   const [resumeToView, setResumeToView] = useState<{ id: string; name: string; url: string } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 6;
+
+  // Load jobs for a specific resume
+  const loadJobsForResume = async (resumeId: string) => {
+    try {
+      setJobsLoading(true);
+      const response = await jobService.getJobsByResume(resumeId, {
+        page: 1,
+        limit: 100 // Load all jobs for this resume
+      });
+      
+      if (response.data && response.data.length > 0) {
+        setJobs(response.data);
+        setCurrentPage(1);
+        setTotalPages(Math.ceil(response.data.length / itemsPerPage));
+      } else {
+        setJobs([]);
+        setCurrentPage(1);
+        setTotalPages(1);
+      }
+    } catch (error) {
+      console.error('Error loading jobs for resume:', error);
+      setJobs([]);
+      setCurrentPage(1);
+      setTotalPages(1);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  // Handle resume selection and load its jobs
+  const handleResumeSelect = async (resumeId: string) => {
+    if (resumeId !== selectedResumeId) {
+      setSelectedResumeId(resumeId);
+      // Save to localStorage for persistence across refreshes
+      localStorage.setItem('selectedResumeId', resumeId);
+      // Load jobs for this resume
+      await loadJobsForResume(resumeId);
+    }
+  };
 
   useEffect(() => {
     loadResumes();
   }, []);
 
   useEffect(() => {
-    // Check if navigated with a specific resume ID to select
-    const state = (location as any).state as { selectedResumeId?: string } | null;
-    if (state?.selectedResumeId && resumes.length > 0) {
+    // Check if navigated with a newly uploaded resume
+    const state = (location as any).state as { 
+      selectedResumeId?: string;
+      newResumeId?: string;
+      scrapedJobs?: any[];
+    } | null;
+    
+    if (state?.newResumeId && resumes.length > 0) {
+      // New resume uploaded - select it and show scraped jobs
+      setSelectedResumeId(state.newResumeId);
+      localStorage.setItem('selectedResumeId', state.newResumeId);
+      if (state.scrapedJobs && state.scrapedJobs.length > 0) {
+        setJobs(state.scrapedJobs);
+        setCurrentPage(1);
+        setTotalPages(Math.ceil(state.scrapedJobs.length / itemsPerPage));
+        // Scroll to results after a short delay
+        setTimeout(() => {
+          document.getElementById('search-results')?.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }, 500);
+      }
+      // Clear the state to prevent re-selection on future visits
+      window.history.replaceState({}, document.title);
+    } else if (state?.selectedResumeId && resumes.length > 0) {
       setSelectedResumeId(state.selectedResumeId);
+      localStorage.setItem('selectedResumeId', state.selectedResumeId);
+      // Load jobs for this resume
+      loadJobsForResume(state.selectedResumeId);
       // Clear the state to prevent re-selection on future visits
       window.history.replaceState({}, document.title);
     } else if (resumes.length > 0 && !selectedResumeId) {
-      // Auto-select the latest resume when resumes load
-      const latest = resumes.find(r => r.isLatest) || resumes[0];
-      setSelectedResumeId(latest._id);
+      // Try to restore from localStorage first
+      const savedResumeId = localStorage.getItem('selectedResumeId');
+      const resumeToSelect = savedResumeId && resumes.find(r => r._id === savedResumeId)
+        ? savedResumeId
+        : (resumes.find(r => r.isLatest) || resumes[0])._id;
+      
+      setSelectedResumeId(resumeToSelect);
+      localStorage.setItem('selectedResumeId', resumeToSelect);
+      // Load jobs for the selected resume
+      loadJobsForResume(resumeToSelect);
     }
   }, [resumes, location]);
 
-  useEffect(() => {
-    // Load jobs when selected resume changes
-    if (selectedResumeId) {
-      setCurrentPage(1); // Reset to page 1 when resume changes
-      setCountryFilter('all'); // Reset country filter when resume changes
-      loadJobsForResume(selectedResumeId, 1);
-    }
-  }, [selectedResumeId]);
+  // Get paginated jobs
+  const getPaginatedJobs = () => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return jobs.slice(startIndex, endIndex);
+  };
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    // Scroll to results
+    setTimeout(() => {
+      document.getElementById('search-results')?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 100);
+  };
 
   const loadResumes = async () => {
     try {
@@ -104,55 +183,6 @@ const Resumes = () => {
     }
   };
 
-  const loadJobsForResume = async (resumeId: string, page: number = 1) => {
-    try {
-      setJobsLoading(true);
-      const response = await jobService.getJobsByResume(resumeId, { limit: 6, page });
-      setJobs(response.data);
-      if (response.pagination) {
-        setTotalPages(response.pagination.pages);
-        setTotalJobs(response.pagination.total);
-        setCurrentPage(response.pagination.page);
-      }
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-      setJobs([]);
-      setTotalPages(1);
-      setTotalJobs(0);
-    } finally {
-      setJobsLoading(false);
-    }
-  };
-
-  const handlePageChange = (page: number) => {
-    if (selectedResumeId) {
-      setCurrentPage(page);
-      loadJobsForResume(selectedResumeId, page);
-    }
-  };
-
-  const handleJobSave = async (id: string) => {
-    try {
-      const response = await jobService.toggleSave(id);
-      const updatedJob = response.data;
-      setJobs(jobs.map(job => job._id === id ? updatedJob : job));
-      toast.success(updatedJob.saved ? 'Job saved!' : 'Job unsaved');
-    } catch (error) {
-      console.error('Error toggling job save:', error);
-      toast.error('Failed to save job');
-    }
-  };
-
-  const handleJobDelete = async (id: string) => {
-    try {
-      await jobService.deleteJob(id);
-      setJobs(jobs.filter(job => job._id !== id));
-      toast.success('Job deleted');
-    } catch (error) {
-      console.error('Error deleting job:', error);
-      toast.error('Failed to delete job');
-    }
-  };
 
   const handleDeleteClick = (id: string, name: string) => {
     setResumeToDelete({ id, name });
@@ -163,13 +193,25 @@ const Resumes = () => {
     if (!resumeToDelete) return;
 
     try {
+      setGlobalLoading(true, 'Deleting Resume...', 'Removing resume and associated data');
+      setDeleteDialogOpen(false);
+      
       await resumeService.deleteResume(resumeToDelete.id);
       removeResume(resumeToDelete.id);
+      
+      // Clear localStorage if we deleted the selected resume
+      if (selectedResumeId === resumeToDelete.id) {
+        localStorage.removeItem('selectedResumeId');
+        setSelectedResumeId(null);
+        setJobs([]);
+      }
+      
+      setGlobalLoading(false);
       toast.success('Resume deleted successfully');
-      setDeleteDialogOpen(false);
       setResumeToDelete(null);
     } catch (error) {
       console.error('Error deleting resume:', error);
+      setGlobalLoading(false);
       toast.error('Failed to delete resume');
     }
   };
@@ -177,6 +219,37 @@ const Resumes = () => {
   const handleDeleteCancel = () => {
     setDeleteDialogOpen(false);
     setResumeToDelete(null);
+  };
+
+  const handleDeleteAllClick = () => {
+    setDeleteAllDialogOpen(true);
+  };
+
+  const handleDeleteAllConfirm = async () => {
+    try {
+      setGlobalLoading(true, 'Deleting All Resumes...', 'Removing all resumes and associated data');
+      setDeleteAllDialogOpen(false);
+      
+      // Delete all resumes
+      await Promise.all(resumes.map(resume => resumeService.deleteResume(resume._id)));
+      
+      // Clear the store and localStorage
+      setResumes([]);
+      setSelectedResumeId(null);
+      setJobs([]);
+      localStorage.removeItem('selectedResumeId');
+      
+      setGlobalLoading(false);
+      toast.success('All resumes deleted successfully');
+    } catch (error) {
+      console.error('Error deleting all resumes:', error);
+      setGlobalLoading(false);
+      toast.error('Failed to delete all resumes');
+    }
+  };
+
+  const handleDeleteAllCancel = () => {
+    setDeleteAllDialogOpen(false);
   };
 
   const handleViewResume = async (id: string) => {
@@ -217,9 +290,37 @@ const Resumes = () => {
     setResumeToView(null);
   };
 
+  const handleDemoButtonClick = () => {
+    // Check if user has reached the 5 CV limit
+    if (resumes.length >= 5) {
+      // Show subscription plans to upgrade or prompt to delete
+      setShowSubscriptionPlans(true);
+    } else {
+      // User has less than 5 CVs, proceed directly with demo
+      handleUploadDemoResume();
+    }
+  };
+
+  const handlePlanSelected = async (plan: 'free' | 'pro' | 'enterprise') => {
+    setShowSubscriptionPlans(false);
+    
+    if (plan === 'free') {
+      toast.info('Free plan - Please delete a CV to upload a new one', {
+        description: 'Free plan allows up to 5 CVs'
+      });
+    } else {
+      toast.success(`${plan.charAt(0).toUpperCase() + plan.slice(1)} plan selected!`, {
+        description: 'Enjoy unlimited CVs and features'
+      });
+      // Proceed with demo upload after upgrading to paid plan
+      await handleUploadDemoResume();
+    }
+  };
+
   const handleUploadDemoResume = async () => {
     try {
       setUploadingDemo(true);
+      setGlobalLoading(true, 'Uploading Demo Resume...', 'Creating sample resume with skills analysis');
       
       // Create a demo resume content
       const demoResumeContent = `
@@ -300,6 +401,8 @@ ACHIEVEMENTS
       if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
         const primaryRole = resume.suggestedRoles[0];
         
+        setGlobalLoading(true, `Finding ${primaryRole} Jobs...`, 'Searching across multiple job platforms for the best matches');
+        
         toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
           description: 'Searching across thousands of listings',
           duration: 5000
@@ -310,15 +413,39 @@ ACHIEVEMENTS
             keyword: primaryRole,
             location: 'United States',
             sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
-            resumeId: resume._id
+            resumeId: resume._id,
+            useCache: true // Use cache for demo resume to save API resources
           });
           
           const jobCount = scrapeResponse.data?.length || 0;
+          const usedCache = scrapeResponse.usedCache || false;
           
           if (jobCount > 0) {
-            toast.success(`✅ Found ${jobCount} matching jobs!`);
+            const successMessage = usedCache 
+              ? `✅ Found ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`
+              : `✅ Saved ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`;
+            
+            const description = usedCache 
+              ? 'Loaded from cache (instant results!)'
+              : scrapeResponse.message || '';
+            
+            toast.success(successMessage, {
+              description: description,
+              duration: 4000
+            });
             setSelectedResumeId(resume._id);
-            await loadJobsForResume(resume._id, 1);
+            // Display the scraped jobs immediately
+            const scrapedJobsData = scrapeResponse.data || [];
+            setJobs(scrapedJobsData);
+            setCurrentPage(1);
+            setTotalPages(Math.ceil(scrapedJobsData.length / itemsPerPage));
+            // Scroll to results
+            setTimeout(() => {
+              document.getElementById('search-results')?.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+              });
+            }, 500);
           } else {
             toast.warning('⚠️ No jobs found for this role', {
               description: 'Try searching manually or with different keywords',
@@ -334,167 +461,157 @@ ACHIEVEMENTS
         }
       }
       
+      setGlobalLoading(false);
       await loadResumes();
     } catch (error: any) {
       console.error('Demo upload error:', error);
       toast.error(error.response?.data?.message || 'Failed to upload demo resume');
+      setGlobalLoading(false);
     } finally {
       setUploadingDemo(false);
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const handleSearch = async (keyword: string, location: string, sources: ('LinkedIn' | 'Indeed' | 'Glassdoor')[]) => {
+    if (!selectedResumeId) {
+      toast.error('Please select a resume first');
+      return;
+    }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
+    try {
+      setIsSearching(true);
+      setJobsLoading(true);
+      
+      toast.info('🔍 Searching for jobs...', {
+        description: `Looking for ${keyword} in ${location}`,
+        duration: 3000
+      });
 
-  // Extract country from location string
-  const extractCountry = (location: string): string => {
-    if (!location) return 'Unknown';
-    
-    // Common country mappings and patterns
-    const countryPatterns: { [key: string]: string } = {
-      'United States': 'United States',
-      'USA': 'United States',
-      'US': 'United States',
-      'United Kingdom': 'United Kingdom',
-      'UK': 'United Kingdom',
-      'Canada': 'Canada',
-      'Australia': 'Australia',
-      'Germany': 'Germany',
-      'France': 'France',
-      'India': 'India',
-      'Netherlands': 'Netherlands',
-      'Spain': 'Spain',
-      'Italy': 'Italy',
-      'Brazil': 'Brazil',
-      'Mexico': 'Mexico',
-      'Singapore': 'Singapore',
-      'Ireland': 'Ireland',
-      'Switzerland': 'Switzerland',
-      'Sweden': 'Sweden',
-      'Poland': 'Poland',
-      'Portugal': 'Portugal',
-      'Austria': 'Austria',
-      'Belgium': 'Belgium',
-      'Denmark': 'Denmark',
-      'Norway': 'Norway',
-      'Finland': 'Finland',
-    };
+      const response = await jobService.scrape({
+        keyword,
+        location,
+        sources,
+        resumeId: selectedResumeId,
+        useCache: true // Use cache for manual searches too
+      });
 
-    // Check if location contains any country pattern
-    for (const [pattern, country] of Object.entries(countryPatterns)) {
-      if (location.includes(pattern)) {
-        return country;
+      const jobCount = response.data?.length || 0;
+      const usedCache = response.usedCache || false;
+      
+      if (jobCount > 0) {
+        setJobs(response.data);
+        setCurrentPage(1);
+        setTotalPages(Math.ceil(jobCount / itemsPerPage));
+        
+        const description = usedCache 
+          ? 'Loaded from cache (instant results!)'
+          : response.message || 'Jobs saved to your account';
+        
+        toast.success(`✅ Found ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`, {
+          description: description,
+          duration: 4000
+        });
+        
+        // Scroll to results
+        setTimeout(() => {
+          document.getElementById('search-results')?.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }, 300);
+      } else {
+        setJobs([]);
+        setCurrentPage(1);
+        setTotalPages(1);
+        toast.warning('No jobs found', {
+          description: 'Try different keywords or location',
+          duration: 4000
+        });
       }
-    }
 
-    // If no pattern matches, try to extract last part after comma
-    const parts = location.split(',').map(p => p.trim());
-    if (parts.length > 1) {
-      const lastPart = parts[parts.length - 1];
-      // Check if last part matches any country
-      for (const [pattern, country] of Object.entries(countryPatterns)) {
-        if (lastPart === pattern) {
-          return country;
-        }
-      }
-      return lastPart;
+      await loadResumes(); // Refresh resume stats
+    } catch (error: any) {
+      console.error('Search error:', error);
+      toast.error(error.response?.data?.message || 'Failed to search jobs');
+      setJobs([]);
+      setCurrentPage(1);
+      setTotalPages(1);
+    } finally {
+      setIsSearching(false);
+      setJobsLoading(false);
     }
-
-    return location;
   };
 
-  // Get unique countries from jobs
-  const getUniqueCountries = () => {
-    const countries = jobs.map(job => extractCountry(job.location));
-    const uniqueCountries = Array.from(new Set(countries)).sort();
-    return uniqueCountries;
+  const handleJobSave = async (id: string) => {
+    try {
+      const response = await jobService.toggleSave(id);
+      const updatedJob = response.data;
+      setJobs(jobs.map(job => job._id === id ? updatedJob : job));
+      toast.success(updatedJob.saved ? 'Job saved!' : 'Job unsaved');
+    } catch (error) {
+      console.error('Error toggling job save:', error);
+      toast.error('Failed to save job');
+    }
   };
 
-  // Filter jobs by country
-  const getFilteredJobs = () => {
-    if (countryFilter === 'all') {
-      return jobs;
+  const handleJobDelete = async (id: string) => {
+    try {
+      await jobService.deleteJob(id);
+      setJobs(jobs.filter(job => job._id !== id));
+      toast.success('Job deleted');
+      await loadResumes(); // Refresh resume stats
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      toast.error('Failed to delete job');
     }
-    return jobs.filter(job => extractCountry(job.location) === countryFilter);
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="relative">
-            <div className="w-16 h-16 mx-auto">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 animate-spin"></div>
-              <div className="absolute inset-1 rounded-full bg-background"></div>
-              <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-teal-500 animate-pulse" />
-            </div>
-          </div>
-          <p className="text-muted-foreground animate-pulse">Preparing your resume dashboard...</p>
-        </div>
+        <LoadingSpinner size="lg" text="Preparing your resume dashboard..." />
       </div>
     );
   }
 
+  const selectedResume = resumes.find(r => r._id === selectedResumeId);
+
   return (
-    <div className="space-y-8 pb-12">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-500/10 via-blue-500/10 to-purple-500/10 border border-teal-500/20 backdrop-blur-sm">
-        <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_70%)]"></div>
-        <div className="relative p-8 md:p-12">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 border border-teal-500/30 text-teal-400 text-sm font-medium">
-                <Sparkles className="h-4 w-4" />
-                AI-Powered Job Automation
+    <div className="space-y-6 pb-12">
+      {/* Compact Hero Header */}
+      <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-purple-500/10 to-blue-500/10 border border-primary/20">
+        <div className="p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/20 border border-primary/30">
+                <Search className="h-6 w-6 text-primary" />
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold">
-                <span className="bg-gradient-to-r from-teal-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground">
                   Search Jobs
-                </span>
               </h1>
-              <p className="text-muted-foreground text-lg max-w-2xl">
-                Transform your job search with intelligent resume analysis and automated applications
+                <p className="text-sm text-muted-foreground mt-1">
+                  AI-powered job search tailored to your resume
               </p>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                onClick={loadResumes}
-                className="group border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/10"
-              >
-                <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
-                Refresh
-              </Button>
+            <div className="flex items-center gap-2">
               <Button 
                 variant="outline"
-                onClick={handleUploadDemoResume}
+                size="sm"
+                onClick={handleDemoButtonClick}
                 disabled={uploadingDemo}
-                className="group border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-500/10 text-purple-400"
+                className="hidden md:flex"
               >
                 {uploadingDemo ? (
                   <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-                    Uploading...
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Loading...
                   </>
                 ) : (
                   <>
-                    <Play className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-                    Try Demo
+                    <Play className="mr-2 h-4 w-4" />
+                    Demo
                   </>
                 )}
               </Button>
@@ -504,214 +621,37 @@ ACHIEVEMENTS
         </div>
       </div>
 
-      {/* Stats Dashboard */}
-      {latestResume && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
-              <span className="text-sm font-medium text-blue-400">Application Analytics</span>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Applications */}
-            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 p-6 hover:border-blue-500/40 transition-all duration-300 hover:scale-105">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
-              <div className="relative space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-blue-500/20 group-hover:bg-blue-500/30 transition-colors">
-                    <Rocket className="h-5 w-5 text-blue-400" />
-                  </div>
-                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/40 text-xs">
-                    Total
-                  </Badge>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-blue-400">{latestResume.appliedJobs}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Applications Sent</div>
-                </div>
-              </div>
+      {/* No Resumes State */}
+      {resumes.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-12">
+          <div className="flex flex-col items-center space-y-6 text-center">
+            <div className="rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 p-6 border border-primary/30">
+              <FileText className="h-10 w-10 text-primary" />
             </div>
-
-            {/* Successful */}
-            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-600/5 border border-emerald-500/20 p-6 hover:border-emerald-500/40 transition-all duration-300 hover:scale-105">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
-              <div className="relative space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-emerald-500/20 group-hover:bg-emerald-500/30 transition-colors">
-                    <CheckCircle className="h-5 w-5 text-emerald-400" />
-                  </div>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs">
-                    Success
-                  </Badge>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-emerald-400">{latestResume.successfulApplications}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Delivered Successfully</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Failed */}
-            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-rose-500/10 to-rose-600/5 border border-rose-500/20 p-6 hover:border-rose-500/40 transition-all duration-300 hover:scale-105">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-all"></div>
-              <div className="relative space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-rose-500/20 group-hover:bg-rose-500/30 transition-colors">
-                    <XCircle className="h-5 w-5 text-rose-400" />
-                  </div>
-                  <Badge className="bg-rose-500/20 text-rose-400 border-rose-500/40 text-xs">
-                    Failed
-                  </Badge>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-rose-400">{latestResume.failedApplications}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Need Attention</div>
-                </div>
-              </div>
-            </div>
-
-            {/* In Queue */}
-            <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/10 to-amber-600/5 border border-amber-500/20 p-6 hover:border-amber-500/40 transition-all duration-300 hover:scale-105">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
-              <div className="relative space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-lg bg-amber-500/20 group-hover:bg-amber-500/30 transition-colors">
-                    <Clock className="h-5 w-5 text-amber-400" />
-                  </div>
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-xs">
-                    Pending
-                  </Badge>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-amber-400">{latestResume.inQueue}</div>
-                  <div className="text-sm text-muted-foreground mt-1">Queued & Processing</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CV Switcher - Tabs to select which resume to view */}
-      {resumes.length > 0 && (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">
-              {resumes.length === 1 ? 'Your Resume' : 'Select Resume'}
-            </h3>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {resumes.map((resume) => (
-                <button
-                  key={resume._id}
-                  onClick={() => setSelectedResumeId(resume._id)}
-                  className={`relative flex-shrink-0 w-64 px-4 py-3 rounded-xl border transition-all duration-200 ${
-                    selectedResumeId === resume._id
-                      ? 'bg-gradient-to-br from-teal-500/20 to-blue-500/20 border-teal-500/50 shadow-lg shadow-teal-500/20'
-                      : 'bg-card border-border/50 hover:border-teal-500/30 hover:bg-teal-500/5'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 justify-between">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className={`rounded-lg p-2 flex-shrink-0 ${
-                        selectedResumeId === resume._id
-                          ? 'bg-teal-500/30'
-                          : 'bg-muted'
-                      }`}>
-                        <FileText className={`h-4 w-4 ${
-                          selectedResumeId === resume._id ? 'text-teal-400' : 'text-muted-foreground'
-                        }`} />
-                      </div>
-                      <div className="text-left flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-medium text-sm truncate ${
-                            selectedResumeId === resume._id ? 'text-foreground' : 'text-muted-foreground'
-                          }`}>
-                            {resume.originalName.length > 20 
-                              ? resume.originalName.substring(0, 20) + '...' 
-                              : resume.originalName}
-                          </span>
-                          {resume.isLatest && (
-                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/40 text-xs px-1.5 py-0 flex-shrink-0">
-                              Active
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {resume.totalJobs} job{resume.totalJobs !== 1 ? 's' : ''}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(resume._id, resume.originalName);
-                      }}
-                      className="p-1 rounded-md hover:bg-rose-500/20 text-muted-foreground hover:text-rose-400 transition-all flex-shrink-0"
-                      title="Delete resume"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  {selectedResumeId === resume._id && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full"></div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Resume Collection */}
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold">Resume Details</h2>
-            <p className="text-sm text-muted-foreground">
-              Detailed information about the selected resume
+            <div className="space-y-2 max-w-md">
+              <h3 className="text-xl font-semibold">Start Your Job Search</h3>
+              <p className="text-muted-foreground text-sm">
+                Upload your resume to unlock AI-powered job matching and automated applications
             </p>
           </div>
-        </div>
-
-        {resumes.length === 0 ? (
-          <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-16">
-            <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
-            <div className="relative flex flex-col items-center space-y-6 text-center">
-              <div className="relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-teal-500/20"></div>
-                <div className="relative rounded-full bg-gradient-to-br from-teal-500/20 to-blue-500/20 p-8 border border-teal-500/30">
-                  <FileText className="h-12 w-12 text-teal-400" />
-                </div>
-              </div>
-              <div className="space-y-3 max-w-md">
-                <h3 className="text-xl font-semibold">Start Your Journey</h3>
-                <p className="text-muted-foreground">
-                  Upload your first resume to unlock AI-powered job matching, skill extraction, and automated applications.
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="flex items-center gap-3">
                 <UploadResumeDialog />
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>or</span>
-                </div>
+              <span className="text-sm text-muted-foreground">or</span>
                 <Button 
                   variant="outline"
-                  onClick={handleUploadDemoResume}
+                  onClick={handleDemoButtonClick}
                   disabled={uploadingDemo}
-                  className="group border-purple-500/30 hover:border-purple-500/50 hover:bg-purple-500/10"
                 >
                   {uploadingDemo ? (
                     <>
-                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
-                      Loading Demo...
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Loading...
                     </>
                   ) : (
                     <>
-                      <Play className="mr-2 h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
-                      <span className="text-purple-400">Try Demo Resume</span>
-                      <Sparkles className="ml-2 h-3.5 w-3.5 text-purple-400 animate-pulse" />
+                      <Play className="mr-2 h-4 w-4" />
+                    Try Demo
                     </>
                   )}
                 </Button>
@@ -719,377 +659,235 @@ ACHIEVEMENTS
             </div>
           </div>
         ) : (
-          <div className="space-y-5">
-            {resumes.filter(resume => resume._id === selectedResumeId).map((resume, index) => (
-              <div 
-                key={resume._id} 
-                className="group relative overflow-hidden rounded-2xl border border-border/50 bg-gradient-to-br from-card to-card/50 hover:border-teal-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-teal-500/5"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-teal-500/0 via-teal-500/5 to-purple-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                
-                <div className="relative p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-4 flex-1">
-                      {/* Icon */}
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/30 to-blue-500/30 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        <button
-                          onClick={() => handleViewResume(resume._id)}
-                          className="relative rounded-xl bg-gradient-to-br from-teal-500/10 to-blue-500/10 p-3 border border-teal-500/20 hover:border-teal-500/40 hover:from-teal-500/20 hover:to-blue-500/20 transition-all cursor-pointer group/icon"
-                          title="Click to view resume"
-                        >
-                          <FileText className="h-7 w-7 text-teal-400 group-hover/icon:scale-110 transition-transform" />
-                        </button>
+        <>
+          {/* Main Content: Two Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Sidebar: Resume Selector & Info */}
+            <div className="lg:col-span-4 space-y-4">
+              {/* Resume Selector Card */}
+              <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm">Active Resume</h3>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={handleDeleteAllClick}
+                      disabled={resumes.length === 0}
+                      className="h-8 px-2 text-rose-400 hover:text-rose-500 hover:bg-rose-500/10"
+                      title="Delete all resumes"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      <span className="text-xs">Delete All</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={loadResumes}
+                      className="h-8 w-8 p-0"
+                      title="Refresh resumes"
+                    >
+                      <Activity className="h-4 w-4" />
+                    </Button>
+                  </div>
                       </div>
 
-                      {/* Content */}
-                      <div className="flex-1 space-y-4">
-                        {/* Header */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-lg">{resume.originalName}</h3>
-                            {resume.isLatest && (
-                              <Badge className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/40">
-                                <Sparkles className="h-3 w-3 mr-1" />
-                                Active
-                              </Badge>
-                            )}
-                            <Badge variant="outline" className="capitalize border-teal-500/30 text-teal-400">
-                              {resume.plan}
-                            </Badge>
+                {/* Resume Tabs */}
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin">
+                  {resumes.map((resume) => (
+                    <div
+                      key={resume._id}
+                      className={`w-full p-3 rounded-lg border transition-all ${
+                        selectedResumeId === resume._id
+                          ? 'bg-primary/10 border-primary/50'
+                          : 'bg-muted/50 border-transparent hover:border-border'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => handleResumeSelect(resume._id)}
+                          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                        >
+                          <div className={`p-2 rounded-lg ${
+                            selectedResumeId === resume._id ? 'bg-primary/20' : 'bg-background'
+                          }`}>
+                            <FileText className={`h-4 w-4 ${
+                              selectedResumeId === resume._id ? 'text-primary' : 'text-muted-foreground'
+                            }`} />
                           </div>
-
-                          {/* Meta Info */}
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5" />
-                              <span>{formatDate(resume.uploadDate)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm truncate">
+                                {resume.originalName.length > 18 
+                                  ? resume.originalName.substring(0, 18) + '...' 
+                                  : resume.originalName}
+                              </span>
+                              {resume.isLatest && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                  Active
+                                </Badge>
+                              )}
                             </div>
-                            <div className="flex items-center gap-1.5">
-                              <FileText className="h-3.5 w-3.5" />
-                              <span>{formatFileSize(resume.fileSize)}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Award className="h-3.5 w-3.5" />
-                              <span className="capitalize">{resume.status}</span>
+                            <div className="text-xs text-muted-foreground">
+                              {resume.totalJobs} jobs
                             </div>
                           </div>
-
-                          {/* View Resume Button */}
+                        </button>
+                        <div className="flex items-center gap-1">
                           <Button
-                            onClick={() => handleViewResume(resume._id)}
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="mt-2 w-fit border-teal-500/30 hover:border-teal-500/50 hover:bg-teal-500/10 text-teal-400 group/btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewResume(resume._id);
+                            }}
+                            className="h-7 w-7 p-0"
                           >
-                            <Eye className="mr-2 h-4 w-4 group-hover/btn:scale-110 transition-transform" />
-                            View Resume
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteClick(resume._id, resume.originalName);
+                            }}
+                            className="h-7 w-7 p-0 text-rose-400 hover:text-rose-500 hover:bg-rose-500/10"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                            </div>
+                          </div>
 
-                        {resume.status === 'completed' && (
-                          <>
-                            {/* Searched Titles */}
-                            {resume.searchedTitles.length > 0 && (
-                              <div className="space-y-2.5">
-                                <div className="flex items-center gap-2">
-                                  <div className="p-1 rounded bg-blue-500/20">
-                                    <Target className="h-3.5 w-3.5 text-blue-400" />
-                                  </div>
-                                  <span className="text-sm font-medium">Targeted Roles</span>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                  {resume.searchedTitles.map((title, index) => (
-                                    <Badge 
-                                      key={index} 
-                                      className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-300 border-blue-500/40 hover:border-blue-500/60 transition-all"
-                                    >
-                                      {title}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+              {/* Selected Resume Details */}
+              {selectedResume && (
+                <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">Resume Details</h3>
+                  </div>
 
-                            {/* Suggested Roles */}
-                            {resume.suggestedRoles.length > 0 && (
-                              <div className="space-y-2.5">
+                  {/* Suggested Roles */}
+                  {selectedResume.suggestedRoles && selectedResume.suggestedRoles.length > 0 && (
+                              <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="p-1 rounded bg-purple-500/20">
                                     <Briefcase className="h-3.5 w-3.5 text-purple-400" />
-                                  </div>
-                                  <span className="text-sm font-medium">AI Suggestions</span>
+                        <span className="text-xs font-medium text-muted-foreground">Suggested Roles</span>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                  Roles that match your profile
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {resume.suggestedRoles.slice(0, 8).map((role, index) => (
-                                    <Badge 
-                                      key={index} 
-                                      variant="outline"
-                                      className="border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-all"
-                                    >
+                                <div className="flex flex-wrap gap-1.5">
+                        {selectedResume.suggestedRoles.slice(0, 3).map((role, idx) => (
+                          <Badge key={idx} variant="outline" className="text-xs">
                                       {role}
                                     </Badge>
                                   ))}
-                                  {resume.suggestedRoles.length > 8 && (
-                                    <Badge variant="outline" className="opacity-60">
-                                      +{resume.suggestedRoles.length - 8} more
+                        {selectedResume.suggestedRoles.length > 3 && (
+                          <Badge variant="outline" className="text-xs opacity-60">
+                            +{selectedResume.suggestedRoles.length - 3}
                                     </Badge>
                                   )}
                                 </div>
                               </div>
                             )}
 
-                            {/* Skills */}
-                            {resume.extractedSkills.length > 0 && (
-                              <div className="space-y-2.5">
+                  {/* Top Skills */}
+                  {selectedResume.extractedSkills && selectedResume.extractedSkills.length > 0 && (
+                              <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                  <div className="p-1 rounded bg-teal-500/20">
                                     <Zap className="h-3.5 w-3.5 text-teal-400" />
-                                  </div>
-                                  <span className="text-sm font-medium">Extracted Skills</span>
+                        <span className="text-xs font-medium text-muted-foreground">Top Skills</span>
                                 </div>
                                 <div className="flex flex-wrap gap-1.5">
-                                  {resume.extractedSkills.slice(0, 12).map((skill, index) => (
-                                    <Badge 
-                                      key={index} 
-                                      variant="secondary"
-                                      className="text-xs bg-muted/50 hover:bg-muted transition-colors"
-                                    >
+                        {selectedResume.extractedSkills.slice(0, 6).map((skill, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
                                       {skill}
                                     </Badge>
                                   ))}
-                                  {resume.extractedSkills.length > 12 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      +{resume.extractedSkills.length - 12}
+                        {selectedResume.extractedSkills.length > 6 && (
+                          <Badge variant="secondary" className="text-xs opacity-60">
+                            +{selectedResume.extractedSkills.length - 6}
                                     </Badge>
                                   )}
                                 </div>
                               </div>
                             )}
+                </div>
+              )}
+            </div>
 
-                            {/* Job Stats Grid */}
-                            <div className="grid grid-cols-3 gap-3 p-4 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
-                              <div className="text-center space-y-1">
-                                <div className="text-xl font-bold text-teal-400">{resume.totalJobs}</div>
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Jobs</div>
+            {/* Right Main Area: Search & Results */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Search Section */}
+              <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Search className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Search for Jobs</h2>
                               </div>
-                              <div className="text-center space-y-1 border-x border-border/50">
-                                <div className="text-xl font-bold text-emerald-400">{resume.newJobs}</div>
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">New</div>
+                
+                {selectedResumeId ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Find jobs tailored to your resume. Select job field, location, and sources.
+                    </p>
+                    <SearchBar onSearch={handleSearch as any} isLoading={isSearching} />
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-muted-foreground">
+                      Please select a resume to start searching for jobs
+                    </p>
                               </div>
-                              <div className="text-center space-y-1">
-                                <div className="text-xl font-bold text-blue-400">
-                                  {resume.jobSearchesUsed}/{resume.jobSearchesLimit}
+                )}
                                 </div>
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Searches</div>
+
+              {/* Search Results */}
+              {jobs.length > 0 && (
+                <div id="search-results" className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold">Search Results</h2>
+                      <p className="text-sm text-muted-foreground">
+                        {jobs.length} job{jobs.length !== 1 ? 's' : ''} found
+                      </p>
                               </div>
                             </div>
+                  <JobList 
+                    jobs={getPaginatedJobs()}
+                    onSave={handleJobSave}
+                    onDelete={handleJobDelete}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              )}
 
-
-                            {/* Usage Tracking */}
-                            <div className="rounded-xl bg-gradient-to-br from-orange-500/10 to-amber-500/10 border border-orange-500/20 p-4 space-y-3">
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Activity className="h-4 w-4 text-orange-400" />
-                                  <span className="font-medium">Usage Metrics</span>
-                                </div>
-                                <Badge variant="outline" className="border-orange-500/40 text-orange-400 text-xs">
-                                  {resume.plan}
-                                </Badge>
-                              </div>
-                              <div className="space-y-2 text-xs">
-                                <div className="flex justify-between">
-                                  <span className="text-muted-foreground">Resume Applications</span>
-                                  <span className="font-medium">{resume.resumeUsageCount}/{resume.resumeUsageLimit}</span>
-                                </div>
-                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                  <div 
-                                    className="h-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all"
-                                    style={{ width: `${(resume.resumeUsageCount / resume.resumeUsageLimit) * 100}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Upgrade CTA */}
-                            {resume.plan === 'FREE' && (
-                              <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10 border border-amber-500/30 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <Rocket className="h-4 w-4 text-amber-400" />
-                                      <span className="font-semibold text-sm">Unlock Pro Features</span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-relaxed">
-                                      Unlimited searches, 10 resumes, priority support
-                                    </p>
-                                  </div>
-                                  <Button 
-                                    size="sm" 
-                                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/20"
-                                  >
-                                    Upgrade
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
+              {/* Empty State for Search Results */}
+              {!isSearching && jobs.length === 0 && selectedResumeId && (
+                <div className="rounded-xl border border-dashed border-border bg-muted/30 p-12 text-center">
+                  <div className="flex flex-col items-center space-y-3">
+                    <div className="rounded-full bg-muted p-4 border border-border">
+                      <Search className="h-8 w-8 text-muted-foreground" />
                       </div>
+                    <div className="space-y-1">
+                      <h3 className="font-semibold">No Results Yet</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Start searching to find jobs that match your resume
+                      </p>
                     </div>
-
-                    {/* Delete Button */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDeleteClick(resume._id, resume.originalName)}
-                      className="text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
+              )}
               </div>
-            ))}
           </div>
-        )}
-      </div>
-
-      {/* Job Listings Section - Displayed directly under resumes */}
-      <div id="job-listings-section" className="space-y-5 border-t border-border/30 pt-8">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold">
-              <span className="bg-gradient-to-r from-teal-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Matching Jobs
-              </span>
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {totalJobs > 0 
-                ? `${totalJobs} job${totalJobs !== 1 ? 's' : ''} found for ${resumes.find(r => r._id === selectedResumeId)?.originalName || 'this resume'}`
-                : selectedResumeId 
-                  ? 'No jobs found for this resume yet'
-                  : 'Upload a resume to see matching jobs'}
-            </p>
-          </div>
-          {jobs.length > 0 && selectedResumeId && (
-            <Button 
-              variant="outline" 
-              onClick={() => loadJobsForResume(selectedResumeId, currentPage)}
-              className="group border-blue-500/30 hover:border-blue-500/50 hover:bg-blue-500/10"
-            >
-              <Activity className="mr-2 h-4 w-4 group-hover:animate-pulse" />
-              Refresh Jobs
-            </Button>
-          )}
-        </div>
-
-        {/* Country Filter */}
-        {jobs.length > 0 && getUniqueCountries().length > 1 && (
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-teal-500/20">
-                <MapPin className="h-4 w-4 text-teal-400" />
-              </div>
-              <span className="text-sm font-medium">Filter by Country</span>
-            </div>
-            <Select value={countryFilter} onValueChange={setCountryFilter}>
-              <SelectTrigger className="w-[250px] border-teal-500/30 focus:ring-teal-500/50">
-                <SelectValue placeholder="All countries" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    <span>All Countries</span>
-                  </div>
-                </SelectItem>
-                {getUniqueCountries().map((country) => (
-                  <SelectItem key={country} value={country}>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span>{country}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {countryFilter !== 'all' && (
-              <Badge className="bg-teal-500/20 text-teal-400 border-teal-500/40">
-                {getFilteredJobs().length} job{getFilteredJobs().length !== 1 ? 's' : ''}
-              </Badge>
-            )}
-          </div>
+        </>
         )}
 
-        {jobsLoading ? (
-          <div className="flex items-center justify-center min-h-[40vh]">
-            <div className="text-center space-y-4">
-              <div className="relative">
-                <div className="w-16 h-16 mx-auto">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-500 via-blue-500 to-purple-500 animate-spin"></div>
-                  <div className="absolute inset-1 rounded-full bg-background"></div>
-                  <Sparkles className="absolute inset-0 m-auto h-8 w-8 text-teal-500 animate-pulse" />
-                </div>
-              </div>
-              <p className="text-muted-foreground animate-pulse">Loading matching jobs...</p>
-            </div>
-          </div>
-        ) : jobs.length > 0 ? (
-          getFilteredJobs().length > 0 ? (
-            <JobList 
-              jobs={getFilteredJobs()} 
-              onSave={handleJobSave} 
-              onDelete={handleJobDelete}
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
-          ) : (
-            <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-12">
-              <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
-              <div className="relative flex flex-col items-center space-y-4 text-center">
-                <div className="rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 p-6 border border-amber-500/30">
-                  <MapPin className="h-10 w-10 text-amber-400" />
-                </div>
-                <div className="space-y-2 max-w-md">
-                  <h3 className="text-lg font-semibold">No Jobs in {countryFilter}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Try selecting a different country or view all countries to see available jobs.
-                  </p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setCountryFilter('all')}
-                  className="border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-500/10"
-                >
-                  <Filter className="mr-2 h-4 w-4" />
-                  Show All Countries
-                </Button>
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="relative overflow-hidden rounded-3xl border border-dashed border-muted-foreground/30 bg-gradient-to-br from-muted/30 to-muted/10 p-12">
-            <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(white,transparent_85%)]"></div>
-            <div className="relative flex flex-col items-center space-y-4 text-center">
-              <div className="rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 p-6 border border-blue-500/30">
-                <Briefcase className="h-10 w-10 text-blue-400" />
-              </div>
-              <div className="space-y-2 max-w-md">
-                <h3 className="text-lg font-semibold">No Jobs Yet</h3>
-                <p className="text-sm text-muted-foreground">
-                  Upload a resume and our AI will automatically search for matching job opportunities across multiple platforms.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -1145,6 +943,60 @@ ACHIEVEMENTS
         </DialogContent>
       </Dialog>
 
+      {/* Delete All Confirmation Dialog */}
+      <Dialog open={deleteAllDialogOpen} onOpenChange={setDeleteAllDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] border-rose-500/20">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="rounded-full bg-rose-500/20 p-3 border border-rose-500/30">
+                <Trash2 className="h-6 w-6 text-rose-400" />
+              </div>
+              <DialogTitle className="text-xl">Delete All Resumes</DialogTitle>
+            </div>
+            <DialogDescription className="text-base pt-2">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-foreground">
+                all {resumes.length} resume{resumes.length !== 1 ? 's' : ''}
+              </span>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-4 my-2">
+            <div className="flex items-start gap-3">
+              <XCircle className="h-5 w-5 text-rose-400 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <p className="font-medium text-rose-400">This will permanently delete:</p>
+                <ul className="text-muted-foreground space-y-1 ml-1">
+                  <li>• All resume files and extracted data</li>
+                  <li>• All associated job listings</li>
+                  <li>• All application history and statistics</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDeleteAllCancel}
+              className="border-border/50 hover:bg-muted"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleDeleteAllConfirm}
+              className="bg-rose-500 hover:bg-rose-600 text-white"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete All Resumes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* View Resume Dialog */}
       <Dialog open={viewResumeDialogOpen} onOpenChange={(open) => !open && handleCloseViewResume()}>
         <DialogContent className="max-w-6xl h-[90vh] border-teal-500/20 p-0 flex flex-col">
@@ -1174,13 +1026,22 @@ ACHIEVEMENTS
             {resumeToView?.url && (
               <iframe
                 src={resumeToView.url}
-                className="w-full h-full rounded-lg border border-border/50"
+                className="w-full h-full rounded-lg border border-border/50 bg-white"
                 title="Resume Preview"
               />
             )}
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Subscription Plans Dialog */}
+      <SubscriptionPlansDialog
+        open={showSubscriptionPlans}
+        onOpenChange={setShowSubscriptionPlans}
+        onPlanSelected={handlePlanSelected}
+        title="CV Limit Reached"
+        description="You've reached the 5 CV limit on the Free plan. Upgrade to Pro for unlimited CVs or delete an existing CV."
+      />
     </div>
   );
 };

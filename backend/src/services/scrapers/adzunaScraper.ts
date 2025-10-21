@@ -39,6 +39,12 @@ interface AdzunaResponse {
 const ADZUNA_APP_ID = process.env.ADZUNA_APP_ID;
 const ADZUNA_API_KEY = process.env.ADZUNA_API_KEY;
 const ADZUNA_BASE_URL = 'https://api.adzuna.com/v1/api/jobs';
+const ADZUNA_MAX_PAGES = parseInt(process.env.ADZUNA_MAX_PAGES || '5', 10);
+const RESULTS_PER_PAGE = 50;
+const DELAY_BETWEEN_REQUESTS = 1000; // 1 second delay to avoid rate limiting
+
+// Helper function to add delay between requests
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export const scrapeAdzuna = async (keyword: string, location: string): Promise<JobListing[]> => {
   const jobs: JobListing[] = [];
@@ -53,47 +59,86 @@ export const scrapeAdzuna = async (keyword: string, location: string): Promise<J
     // Determine country code from location (default to GB)
     const country = getCountryCode(location);
     
-    // Build API URL
-    const url = `${ADZUNA_BASE_URL}/${country}/search/1`;
-    
     console.log(`Fetching jobs from Adzuna API for "${keyword}" in "${location}"...`);
     console.log(`🌍 Detected country code: ${country.toUpperCase()}`);
+    console.log(`📄 Fetching up to ${ADZUNA_MAX_PAGES} pages (max ${ADZUNA_MAX_PAGES * RESULTS_PER_PAGE} jobs)...`);
     
-    // Make API request
-    const response = await axios.get<AdzunaResponse>(url, {
-      params: {
-        app_id: ADZUNA_APP_ID,
-        app_key: ADZUNA_API_KEY,
-        results_per_page: 50,
-        what: keyword,
-        where: location,
-        sort_by: 'date' // Most recent first
-      },
-      timeout: 15000,
-      headers: {
-        'Content-Type': 'application/json'
+    let totalJobsFetched = 0;
+    let pagesProcessed = 0;
+    
+    // Loop through pages
+    for (let page = 1; page <= ADZUNA_MAX_PAGES; page++) {
+      try {
+        // Build API URL with current page
+        const url = `${ADZUNA_BASE_URL}/${country}/search/${page}`;
+        
+        // Make API request
+        const response = await axios.get<AdzunaResponse>(url, {
+          params: {
+            app_id: ADZUNA_APP_ID,
+            app_key: ADZUNA_API_KEY,
+            results_per_page: RESULTS_PER_PAGE,
+            what: keyword,
+            where: location,
+            sort_by: 'date' // Most recent first
+          },
+          timeout: 15000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const adzunaJobs = response.data.results || [];
+        pagesProcessed++;
+        totalJobsFetched += adzunaJobs.length;
+        
+        console.log(`📄 Page ${page}/${ADZUNA_MAX_PAGES}: Received ${adzunaJobs.length} jobs`);
+
+        // Transform Adzuna jobs to our format
+        for (const job of adzunaJobs) {
+          const salary = formatSalary(job.salary_min, job.salary_max);
+          
+          jobs.push({
+            title: job.title,
+            company: job.company?.display_name || 'Unknown Company',
+            location: job.location?.display_name || location,
+            description: stripHtml(job.description),
+            salary: salary,
+            jobUrl: job.redirect_url,
+            source: 'Adzuna',
+            postedDate: job.created ? new Date(job.created) : undefined
+          });
+        }
+
+        // If we received fewer results than requested, we've reached the end
+        if (adzunaJobs.length < RESULTS_PER_PAGE) {
+          console.log(`✅ Reached end of results at page ${page}`);
+          break;
+        }
+
+        // Add delay between requests (except after the last page)
+        if (page < ADZUNA_MAX_PAGES) {
+          await sleep(DELAY_BETWEEN_REQUESTS);
+        }
+      } catch (pageError: any) {
+        // Handle rate limiting
+        if (pageError.response?.status === 429) {
+          console.error(`⚠️ Rate limit reached at page ${page}. Stopping pagination.`);
+          break;
+        }
+        
+        // Log error but continue with what we have
+        console.error(`⚠️ Error fetching page ${page}:`, pageError.message);
+        
+        // If first page fails, throw error; otherwise continue
+        if (page === 1) {
+          throw pageError;
+        }
+        break;
       }
-    });
-
-    const adzunaJobs = response.data.results || [];
-    
-    console.log(`Adzuna API returned ${adzunaJobs.length} jobs`);
-
-    // Transform Adzuna jobs to our format
-    for (const job of adzunaJobs) {
-      const salary = formatSalary(job.salary_min, job.salary_max);
-      
-      jobs.push({
-        title: job.title,
-        company: job.company?.display_name || 'Unknown Company',
-        location: job.location?.display_name || location,
-        description: stripHtml(job.description),
-        salary: salary,
-        jobUrl: job.redirect_url,
-        source: 'Adzuna',
-        postedDate: job.created ? new Date(job.created) : undefined
-      });
     }
+
+    console.log(`✅ Adzuna API: Completed - ${totalJobsFetched} jobs from ${pagesProcessed} ${pagesProcessed === 1 ? 'page' : 'pages'}`);
 
     return jobs;
   } catch (error: any) {

@@ -7,6 +7,8 @@ import connectDB from './config/database';
 import jobRoutes from './routes/jobRoutes';
 import resumeRoutes from './routes/resumeRoutes';
 import authRoutes from './routes/authRoutes';
+import applicationRoutes from './routes/applicationRoutes';
+import extensionRoutes from './routes/extensionRoutes';
 
 dotenv.config();
 
@@ -35,6 +37,8 @@ connectDB();
 app.use('/api/auth', authRoutes);
 app.use('/api', jobRoutes);
 app.use('/api/resumes', resumeRoutes);
+app.use('/api', applicationRoutes);
+app.use('/api', extensionRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
