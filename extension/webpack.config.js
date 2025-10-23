@@ -2,18 +2,24 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-module.exports = {
-  entry: {
-    'background/service-worker': './background/service-worker.ts',
-    'content/content-script': './content/content-script.ts',
-    'popup/popup': './popup/popup.tsx',
-    'options/options': './options/options.tsx',
-  },
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: '[name].js',
-    clean: true,
-  },
+module.exports = (env) => {
+  const target = env.target || 'chrome';
+  const isSafari = target === 'safari';
+  const outputDir = isSafari ? 'dist-safari' : 'dist';
+  const manifestFile = isSafari ? 'manifest.safari.json' : 'manifest.json';
+
+  return {
+    entry: {
+      'background/service-worker': './background/service-worker.ts',
+      'content/content-script': './content/content-script.ts',
+      'popup/popup': './popup/popup.tsx',
+      'options/options': './options/options.tsx',
+    },
+    output: {
+      path: path.resolve(__dirname, outputDir),
+      filename: '[name].js',
+      clean: true,
+    },
   module: {
     rules: [
       {
@@ -30,24 +36,25 @@ module.exports = {
   resolve: {
     extensions: ['.tsx', '.ts', '.js'],
   },
-  plugins: [
-    new CopyPlugin({
-      patterns: [
-        { from: 'manifest.json', to: 'manifest.json' },
-        { from: 'public', to: 'public' },
-        { from: 'content/content-styles.css', to: 'content/content-styles.css' },
-      ],
-    }),
-    new HtmlWebpackPlugin({
-      template: './popup/popup.html',
-      filename: 'popup/popup.html',
-      chunks: ['popup/popup'],
-    }),
-    new HtmlWebpackPlugin({
-      template: './options/options.html',
-      filename: 'options/options.html',
-      chunks: ['options/options'],
-    }),
-  ],
+    plugins: [
+      new CopyPlugin({
+        patterns: [
+          { from: manifestFile, to: 'manifest.json' },
+          { from: 'public', to: 'public' },
+          { from: 'content/content-styles.css', to: 'content/content-styles.css' },
+        ],
+      }),
+      new HtmlWebpackPlugin({
+        template: './popup/popup.html',
+        filename: 'popup/popup.html',
+        chunks: ['popup/popup'],
+      }),
+      new HtmlWebpackPlugin({
+        template: './options/options.html',
+        filename: 'options/options.html',
+        chunks: ['options/options'],
+      }),
+    ],
+  };
 };
 

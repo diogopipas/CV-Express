@@ -1,3 +1,6 @@
+// Suppress punycode deprecation warning - using userland alternative
+require('../suppress-punycode-warning');
+
 import express, { Application } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -9,6 +12,7 @@ import resumeRoutes from './routes/resumeRoutes';
 import authRoutes from './routes/authRoutes';
 import applicationRoutes from './routes/applicationRoutes';
 import extensionRoutes from './routes/extensionRoutes';
+import emailRoutes from './routes/emailRoutes';
 
 dotenv.config();
 
@@ -23,7 +27,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 // Middleware
-app.use(cors());
+// Configure CORS to allow frontend requests
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -39,6 +49,7 @@ app.use('/api', jobRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api', extensionRoutes);
+app.use('/api/emails', emailRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

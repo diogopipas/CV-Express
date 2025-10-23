@@ -42,7 +42,7 @@ const Home = () => {
             {/* Subheading */}
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
               Upload your resume, let AI analyze your skills, and automatically apply to thousands of 
-              matching jobs across LinkedIn, Indeed, and Glassdoor. Your personal job application assistant.
+              matching jobs across multiple job platforms. Your personal job application assistant.
             </p>
 
             {/* CTA Buttons */}
@@ -126,7 +126,7 @@ const Home = () => {
               <div className="space-y-2">
                 <h3 className="text-xl font-semibold">Multi-Platform Search</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Scrape jobs from LinkedIn, Indeed, and Glassdoor simultaneously. One search, unlimited opportunities
+                  Search jobs from multiple platforms simultaneously. One search, unlimited opportunities
                 </p>
               </div>
             </div>
@@ -263,15 +263,15 @@ const Home = () => {
         <div className="flex flex-wrap items-center justify-center gap-8">
           <div className="flex items-center gap-3 px-6 py-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-all">
             <Briefcase className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold">LinkedIn</span>
+            <span className="text-xl font-semibold">Adzuna</span>
           </div>
           <div className="flex items-center gap-3 px-6 py-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-all">
             <Briefcase className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold">Indeed</span>
+            <span className="text-xl font-semibold">Arbeitnow</span>
           </div>
           <div className="flex items-center gap-3 px-6 py-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-all">
             <Briefcase className="h-8 w-8 text-primary" />
-            <span className="text-xl font-semibold">Glassdoor</span>
+            <span className="text-xl font-semibold">JSearch</span>
           </div>
         </div>
       </section>

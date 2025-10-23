@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import Resume from '../models/Resume';
+import { parseResumeWithAI, extractAllSkills, suggestRoles } from '../services/resumeParser';
 
 const router = express.Router();
 
@@ -73,8 +74,8 @@ const extractSkills = (text: string): string[] => {
   return [...new Set(foundSkills)]; // Remove duplicates
 };
 
-// Suggest roles based on skills
-const suggestRoles = (skills: string[]): string[] => {
+// Suggest roles based on skills (basic fallback)
+const suggestBasicRoles = (skills: string[]): string[] => {
   const roles: string[] = [];
   const skillsLower = skills.map(s => s.toLowerCase());
 
@@ -135,41 +136,46 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
 
     // Process resume to extract text and skills (async)
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
+    let extractedText = '';
     
     if (fileExtension === '.txt') {
       // Handle text file
       try {
-        const extractedText = fs.readFileSync(req.file.path, 'utf-8');
-
-        const skills = extractSkills(extractedText);
-        const roles = suggestRoles(skills);
-
-        resume.extractedSkills = skills;
-        resume.suggestedRoles = roles;
-        resume.status = 'completed';
-        await resume.save();
+        extractedText = fs.readFileSync(req.file.path, 'utf-8');
       } catch (error) {
-        console.error('Text file parsing error:', error);
-        resume.status = 'completed'; // Still mark as completed even if parsing fails
-        await resume.save();
+        console.error('Text file reading error:', error);
       }
     } else if (fileExtension === '.pdf' && pdfParse) {
       // Handle PDF file
       try {
         const dataBuffer = fs.readFileSync(req.file.path);
         const pdfData = await pdfParse(dataBuffer);
-        const extractedText = pdfData.text;
+        extractedText = pdfData.text;
+      } catch (error) {
+        console.error('PDF parsing error:', error);
+      }
+    }
 
-        const skills = extractSkills(extractedText);
-        const roles = suggestRoles(skills);
+    // Use advanced AI parser if text was extracted
+    if (extractedText) {
+      try {
+        const parsedData = await parseResumeWithAI(extractedText);
+        const skills = extractAllSkills(parsedData);
+        const roles = suggestRoles(parsedData);
 
+        resume.parsedData = parsedData;
         resume.extractedSkills = skills;
         resume.suggestedRoles = roles;
         resume.status = 'completed';
         await resume.save();
       } catch (error) {
-        console.error('PDF parsing error:', error);
-        resume.status = 'completed'; // Still mark as completed even if parsing fails
+        console.error('Resume parsing error:', error);
+        // Fallback to basic parsing
+        const skills = extractSkills(extractedText);
+        const basicRoles = suggestBasicRoles(skills);
+        resume.extractedSkills = skills;
+        resume.suggestedRoles = basicRoles;
+        resume.status = 'completed';
         await resume.save();
       }
     } else {

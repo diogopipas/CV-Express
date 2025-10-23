@@ -2,11 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends Omit<Request, 'user'> {
   user?: IUser;
 }
 
-export const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const protect = async (req: Request, res: Response, next: NextFunction) => {
   let token;
 
   // Check for token in headers
@@ -19,9 +19,9 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
       const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
 
       // Get user from token
-      req.user = (await User.findById(decoded.id).select('-password')) as IUser;
+      (req as AuthRequest).user = (await User.findById(decoded.id).select('-password')) as IUser;
 
-      if (!req.user) {
+      if (!(req as AuthRequest).user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
       }
 

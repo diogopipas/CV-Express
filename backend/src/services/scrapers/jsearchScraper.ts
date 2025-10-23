@@ -78,9 +78,10 @@ interface JSearchResponse {
 
 const JSEARCH_BASE_URL = 'https://jsearch.p.rapidapi.com/search';
 const JSEARCH_API_KEY = process.env.JSEARCH_API_KEY;
-const REQUEST_TIMEOUT = 15000; // 15 seconds
-const RESULTS_PER_PAGE = 10; // JSearch default
-const MAX_PAGES = 3; // Fetch up to 3 pages (30 jobs)
+const REQUEST_TIMEOUT = 30000; // 30 seconds
+const RESULTS_PER_PAGE = 20; // JSearch default
+const MAX_PAGES_PER_REQUEST = 30; // API limit per request
+const TOTAL_PAGES_TO_FETCH = 50; // Total pages to fetch (500 jobs)
 
 export const scrapeJSearch = async (keyword: string, location: string): Promise<JobListing[]> => {
   const jobs: JobListing[] = [];
@@ -97,27 +98,60 @@ export const scrapeJSearch = async (keyword: string, location: string): Promise<
     // Build search query
     const query = `${keyword} in ${location}`;
     
-    // Make API request with pagination to get more results
-    const response = await axios.get<JSearchResponse>(JSEARCH_BASE_URL, {
-      params: {
-        query: query,
-        page: '1',
-        num_pages: MAX_PAGES.toString(), // Fetch multiple pages for more results
-        date_posted: 'all'
-      },
-      headers: {
-        'X-RapidAPI-Key': JSEARCH_API_KEY,
-        'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
-        'Content-Type': 'application/json'
-      },
-      timeout: REQUEST_TIMEOUT
-    });
+    // Calculate number of requests needed
+    const numRequests = Math.ceil(TOTAL_PAGES_TO_FETCH / MAX_PAGES_PER_REQUEST);
+    console.log(`📄 JSearch: Making ${numRequests} API requests to fetch ${TOTAL_PAGES_TO_FETCH} pages...`);
+    
+    let allJobs: JSearchJob[] = [];
+    
+    // Make multiple API requests to fetch all pages
+    for (let requestNum = 0; requestNum < numRequests; requestNum++) {
+      const startPage = requestNum * MAX_PAGES_PER_REQUEST + 1;
+      const pagesThisRequest = Math.min(MAX_PAGES_PER_REQUEST, TOTAL_PAGES_TO_FETCH - requestNum * MAX_PAGES_PER_REQUEST);
+      
+      try {
+        console.log(`📄 JSearch: Fetching pages ${startPage}-${startPage + pagesThisRequest - 1}...`);
+        
+        const response = await axios.get<JSearchResponse>(JSEARCH_BASE_URL, {
+          params: {
+            query: query,
+            page: startPage.toString(),
+            num_pages: pagesThisRequest.toString(),
+            date_posted: 'all'
+          },
+          headers: {
+            'X-RapidAPI-Key': JSEARCH_API_KEY,
+            'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+            'Content-Type': 'application/json'
+          },
+          timeout: REQUEST_TIMEOUT
+        });
 
-    const jsearchJobs = response.data.data || [];
-    console.log(`📄 JSearch API: Received ${jsearchJobs.length} jobs (up to ${MAX_PAGES} pages)`);
+        const jsearchJobs = response.data.data || [];
+        allJobs = allJobs.concat(jsearchJobs);
+        console.log(`✅ JSearch: Received ${jsearchJobs.length} jobs from this batch (total: ${allJobs.length})`);
+        
+        // If we got fewer results than expected, stop making more requests
+        if (jsearchJobs.length < pagesThisRequest * RESULTS_PER_PAGE) {
+          console.log(`📄 JSearch: Reached end of available results`);
+          break;
+        }
+        
+        // Add a small delay between requests to avoid rate limiting
+        if (requestNum < numRequests - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (batchError: any) {
+        console.error(`⚠️ JSearch: Error fetching batch ${requestNum + 1}:`, batchError.message);
+        // Continue with what we have so far
+        break;
+      }
+    }
+
+    console.log(`📄 JSearch API: Received ${allJobs.length} total jobs`);
 
     // Transform JSearch jobs to our format
-    for (const job of jsearchJobs) {
+    for (const job of allJobs) {
       const salary = formatSalary(
         job.job_min_salary,
         job.job_max_salary,

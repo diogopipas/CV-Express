@@ -1,9 +1,10 @@
+import browser from 'webextension-polyfill';
 import { FormDetector } from './form-detector';
 import { FormFiller } from './form-filler';
 import { JobData, ExtensionMessage, ExtensionResponse } from '../utils/types';
 
 /**
- * Content script for CV-Express extension
+ * Content script for CV-Express extension (Chrome & Safari compatible)
  * Runs on job application pages to detect and fill forms
  */
 
@@ -20,7 +21,7 @@ function init() {
   detectApplicationForm();
   
   // Listen for messages from background script and popup
-  chrome.runtime.onMessage.addListener(handleMessage);
+  browser.runtime.onMessage.addListener(handleMessage);
   
   // Observe DOM changes (for SPAs)
   observeDOMChanges();
@@ -39,7 +40,7 @@ async function detectApplicationForm() {
     showFloatingButton();
     
     // Notify background script
-    chrome.runtime.sendMessage({
+    browser.runtime.sendMessage({
       type: 'FORM_DETECTED',
       payload: { atsType: formSchema.atsType.name },
     });
@@ -84,7 +85,7 @@ async function handleAutoFillClick() {
     }
     
     // Check authentication
-    const authResponse = await chrome.runtime.sendMessage({
+    const authResponse = await browser.runtime.sendMessage({
       type: 'AUTH_STATUS',
     });
     
@@ -109,7 +110,7 @@ async function handleAutoFillClick() {
       );
       
       // Track usage
-      chrome.runtime.sendMessage({
+      browser.runtime.sendMessage({
         type: 'TRACK_USAGE',
         payload: {
           eventType: 'form_filled',
@@ -222,36 +223,32 @@ function extractJobData(): JobData | null {
  */
 function handleMessage(
   message: ExtensionMessage,
-  sender: chrome.runtime.MessageSender,
-  sendResponse: (response: ExtensionResponse) => void
-) {
+  sender: browser.Runtime.MessageSender
+): Promise<any> {
   console.log('Content script received message:', message.type);
   
   switch (message.type) {
-    case 'EXTRACT_JOB_DATA':
+    case 'EXTRACT_JOB_DATA': {
       const jobData = extractJobData();
-      sendResponse({ success: !!jobData, data: jobData });
-      break;
+      return Promise.resolve({ success: !!jobData, data: jobData });
+    }
       
-    case 'DETECT_APPLICATION_FORM':
+    case 'DETECT_APPLICATION_FORM': {
       const detector = new FormDetector();
       const formSchema = detector.detectForm();
-      sendResponse({ 
+      return Promise.resolve({ 
         success: !!formSchema, 
         data: formSchema 
       });
-      break;
+    }
       
     case 'TRIGGER_AUTO_FILL':
       handleAutoFillClick();
-      sendResponse({ success: true });
-      break;
+      return Promise.resolve({ success: true });
       
     default:
-      sendResponse({ success: false, error: 'Unknown message type' });
+      return Promise.resolve({ success: false, error: 'Unknown message type' });
   }
-  
-  return true; // Keep channel open for async response
 }
 
 /**

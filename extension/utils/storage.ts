@@ -1,7 +1,8 @@
+import browser from 'webextension-polyfill';
 import { StorageData, UserData, Resume } from './types';
 
 /**
- * Storage utility for Chrome extension
+ * Storage utility for browser extension (Chrome & Safari compatible)
  * Handles secure storage of authentication tokens and user data
  */
 class StorageManager {
@@ -16,7 +17,7 @@ class StorageManager {
    * Save authentication token
    */
   async saveToken(token: string): Promise<void> {
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       [StorageManager.STORAGE_KEYS.TOKEN]: token,
     });
   }
@@ -25,7 +26,7 @@ class StorageManager {
    * Get authentication token
    */
   async getToken(): Promise<string | null> {
-    const result = await chrome.storage.local.get(StorageManager.STORAGE_KEYS.TOKEN);
+    const result = await browser.storage.local.get(StorageManager.STORAGE_KEYS.TOKEN);
     return result[StorageManager.STORAGE_KEYS.TOKEN] || null;
   }
 
@@ -33,7 +34,7 @@ class StorageManager {
    * Save user data
    */
   async saveUserData(userData: UserData): Promise<void> {
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       [StorageManager.STORAGE_KEYS.USER_DATA]: userData,
       [StorageManager.STORAGE_KEYS.LAST_SYNC]: Date.now(),
     });
@@ -43,7 +44,7 @@ class StorageManager {
    * Get user data
    */
   async getUserData(): Promise<UserData | null> {
-    const result = await chrome.storage.local.get(StorageManager.STORAGE_KEYS.USER_DATA);
+    const result = await browser.storage.local.get(StorageManager.STORAGE_KEYS.USER_DATA);
     return result[StorageManager.STORAGE_KEYS.USER_DATA] || null;
   }
 
@@ -51,7 +52,7 @@ class StorageManager {
    * Save resume data
    */
   async saveResume(resume: Resume): Promise<void> {
-    await chrome.storage.local.set({
+    await browser.storage.local.set({
       [StorageManager.STORAGE_KEYS.RESUME]: resume,
     });
   }
@@ -60,7 +61,7 @@ class StorageManager {
    * Get resume data
    */
   async getResume(): Promise<Resume | null> {
-    const result = await chrome.storage.local.get(StorageManager.STORAGE_KEYS.RESUME);
+    const result = await browser.storage.local.get(StorageManager.STORAGE_KEYS.RESUME);
     return result[StorageManager.STORAGE_KEYS.RESUME] || null;
   }
 
@@ -68,7 +69,7 @@ class StorageManager {
    * Get all storage data
    */
   async getAllData(): Promise<StorageData> {
-    const result = await chrome.storage.local.get([
+    const result = await browser.storage.local.get([
       StorageManager.STORAGE_KEYS.TOKEN,
       StorageManager.STORAGE_KEYS.USER_DATA,
       StorageManager.STORAGE_KEYS.RESUME,
@@ -87,7 +88,7 @@ class StorageManager {
    * Clear all data (logout)
    */
   async clearAll(): Promise<void> {
-    await chrome.storage.local.clear();
+    await browser.storage.local.clear();
   }
 
   /**
@@ -102,7 +103,7 @@ class StorageManager {
    * Check if data needs sync (older than 1 hour)
    */
   async needsSync(): Promise<boolean> {
-    const result = await chrome.storage.local.get(StorageManager.STORAGE_KEYS.LAST_SYNC);
+    const result = await browser.storage.local.get(StorageManager.STORAGE_KEYS.LAST_SYNC);
     const lastSync = result[StorageManager.STORAGE_KEYS.LAST_SYNC];
     
     if (!lastSync) return true;

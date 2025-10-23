@@ -2,12 +2,11 @@ import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface SearchBarProps {
-  onSearch: (keyword: string, location: string, sources: ('LinkedIn' | 'Indeed' | 'Glassdoor')[]) => void;
+  onSearch: (keyword: string, location: string) => void;
   isLoading?: boolean;
 }
 
@@ -47,7 +46,7 @@ const JOB_CATEGORIES = {
   }
 };
 
-// Location hierarchy
+// Location hierarchy - Expanded globally
 const LOCATIONS = {
   'United States': {
     'California': ['Los Angeles', 'San Francisco', 'San Diego', 'San Jose', 'Sacramento'],
@@ -59,7 +58,7 @@ const LOCATIONS = {
     'Massachusetts': ['Boston', 'Cambridge', 'Worcester', 'Springfield', 'Lowell']
   },
   'United Kingdom': {
-    'England': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Liverpool'],
+    'England': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Liverpool', 'Bristol'],
     'Scotland': ['Edinburgh', 'Glasgow', 'Aberdeen', 'Dundee'],
     'Wales': ['Cardiff', 'Swansea', 'Newport', 'Wrexham'],
     'Northern Ireland': ['Belfast', 'Derry', 'Lisburn', 'Newry']
@@ -75,6 +74,211 @@ const LOCATIONS = {
     'Victoria': ['Melbourne', 'Geelong', 'Ballarat', 'Bendigo'],
     'Queensland': ['Brisbane', 'Gold Coast', 'Townsville', 'Cairns'],
     'Western Australia': ['Perth', 'Fremantle', 'Mandurah', 'Bunbury']
+  },
+  'Germany': {
+    'Bavaria': ['Munich', 'Nuremberg', 'Augsburg', 'Regensburg'],
+    'North Rhine-Westphalia': ['Cologne', 'Düsseldorf', 'Dortmund', 'Essen', 'Duisburg'],
+    'Baden-Württemberg': ['Stuttgart', 'Mannheim', 'Karlsruhe', 'Freiburg'],
+    'Berlin': ['Berlin'],
+    'Hamburg': ['Hamburg'],
+    'Hesse': ['Frankfurt', 'Wiesbaden', 'Kassel', 'Darmstadt']
+  },
+  'France': {
+    'Île-de-France': ['Paris', 'Versailles', 'Boulogne-Billancourt'],
+    'Provence-Alpes-Côte d\'Azur': ['Marseille', 'Nice', 'Toulon', 'Cannes'],
+    'Auvergne-Rhône-Alpes': ['Lyon', 'Grenoble', 'Saint-Étienne', 'Annecy'],
+    'Nouvelle-Aquitaine': ['Bordeaux', 'Limoges', 'Poitiers', 'La Rochelle'],
+    'Occitanie': ['Toulouse', 'Montpellier', 'Nîmes', 'Perpignan']
+  },
+  'Spain': {
+    'Madrid': ['Madrid', 'Móstoles', 'Alcalá de Henares'],
+    'Catalonia': ['Barcelona', 'Hospitalet', 'Terrassa', 'Sabadell'],
+    'Andalusia': ['Seville', 'Málaga', 'Córdoba', 'Granada'],
+    'Valencia': ['Valencia', 'Alicante', 'Elche', 'Castellón'],
+    'Basque Country': ['Bilbao', 'Vitoria', 'San Sebastián']
+  },
+  'Italy': {
+    'Lazio': ['Rome', 'Latina', 'Viterbo'],
+    'Lombardy': ['Milan', 'Brescia', 'Bergamo', 'Monza'],
+    'Campania': ['Naples', 'Salerno', 'Caserta'],
+    'Sicily': ['Palermo', 'Catania', 'Messina', 'Syracuse'],
+    'Tuscany': ['Florence', 'Pisa', 'Livorno', 'Arezzo']
+  },
+  'Netherlands': {
+    'North Holland': ['Amsterdam', 'Haarlem', 'Zaanstad'],
+    'South Holland': ['Rotterdam', 'The Hague', 'Leiden', 'Delft'],
+    'Utrecht': ['Utrecht', 'Amersfoort', 'Nieuwegein'],
+    'North Brabant': ['Eindhoven', 'Tilburg', 'Breda', 's-Hertogenbosch']
+  },
+  'Sweden': {
+    'Stockholm': ['Stockholm', 'Solna', 'Sundbyberg'],
+    'Västra Götaland': ['Gothenburg', 'Borås', 'Mölndal'],
+    'Skåne': ['Malmö', 'Helsingborg', 'Lund', 'Kristianstad'],
+    'Uppsala': ['Uppsala', 'Enköping']
+  },
+  'Norway': {
+    'Oslo': ['Oslo'],
+    'Vestland': ['Bergen', 'Stavanger'],
+    'Trøndelag': ['Trondheim'],
+    'Rogaland': ['Stavanger', 'Sandnes']
+  },
+  'Denmark': {
+    'Capital Region': ['Copenhagen', 'Frederiksberg'],
+    'Central Jutland': ['Aarhus', 'Randers', 'Horsens'],
+    'Southern Denmark': ['Odense', 'Esbjerg', 'Kolding'],
+    'North Jutland': ['Aalborg']
+  },
+  'Finland': {
+    'Uusimaa': ['Helsinki', 'Espoo', 'Vantaa'],
+    'Pirkanmaa': ['Tampere', 'Nokia'],
+    'Southwest Finland': ['Turku', 'Kaarina'],
+    'North Ostrobothnia': ['Oulu', 'Raahe']
+  },
+  'Poland': {
+    'Masovian': ['Warsaw', 'Radom', 'Płock'],
+    'Lesser Poland': ['Kraków', 'Tarnów', 'Nowy Sącz'],
+    'Greater Poland': ['Poznań', 'Kalisz', 'Konin'],
+    'Silesian': ['Katowice', 'Częstochowa', 'Sosnowiec', 'Gliwice']
+  },
+  'Portugal': {
+    'Lisbon': ['Lisbon', 'Amadora', 'Cascais'],
+    'Porto': ['Porto', 'Vila Nova de Gaia', 'Matosinhos'],
+    'Braga': ['Braga', 'Guimarães'],
+    'Setúbal': ['Setúbal', 'Almada']
+  },
+  'Belgium': {
+    'Brussels': ['Brussels'],
+    'Flanders': ['Antwerp', 'Ghent', 'Bruges', 'Leuven'],
+    'Wallonia': ['Charleroi', 'Liège', 'Namur', 'Mons']
+  },
+  'Austria': {
+    'Vienna': ['Vienna'],
+    'Styria': ['Graz', 'Leoben'],
+    'Tyrol': ['Innsbruck'],
+    'Upper Austria': ['Linz', 'Wels'],
+    'Salzburg': ['Salzburg']
+  },
+  'Switzerland': {
+    'Zürich': ['Zürich', 'Winterthur'],
+    'Bern': ['Bern', 'Thun'],
+    'Geneva': ['Geneva'],
+    'Basel-Stadt': ['Basel'],
+    'Vaud': ['Lausanne', 'Montreux']
+  },
+  'Ireland': {
+    'Leinster': ['Dublin', 'Drogheda', 'Dundalk'],
+    'Munster': ['Cork', 'Limerick', 'Waterford', 'Killarney'],
+    'Connacht': ['Galway', 'Sligo'],
+    'Ulster': ['Letterkenny', 'Monaghan']
+  },
+  'Brazil': {
+    'São Paulo': ['São Paulo', 'Campinas', 'Santos', 'São José dos Campos'],
+    'Rio de Janeiro': ['Rio de Janeiro', 'Niterói', 'Duque de Caxias'],
+    'Minas Gerais': ['Belo Horizonte', 'Uberlândia', 'Contagem'],
+    'Bahia': ['Salvador', 'Feira de Santana'],
+    'Paraná': ['Curitiba', 'Londrina', 'Maringá']
+  },
+  'Mexico': {
+    'Mexico City': ['Mexico City'],
+    'Jalisco': ['Guadalajara', 'Zapopan', 'Tlaquepaque'],
+    'Nuevo León': ['Monterrey', 'San Nicolás de los Garza'],
+    'Puebla': ['Puebla', 'Tehuacán'],
+    'Guanajuato': ['León', 'Irapuato', 'Celaya']
+  },
+  'India': {
+    'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane'],
+    'Karnataka': ['Bangalore', 'Mysore', 'Hubli'],
+    'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai'],
+    'Delhi': ['Delhi', 'New Delhi'],
+    'West Bengal': ['Kolkata', 'Howrah'],
+    'Telangana': ['Hyderabad', 'Warangal']
+  },
+  'China': {
+    'Beijing': ['Beijing'],
+    'Shanghai': ['Shanghai'],
+    'Guangdong': ['Guangzhou', 'Shenzhen', 'Dongguan', 'Foshan'],
+    'Zhejiang': ['Hangzhou', 'Ningbo', 'Wenzhou'],
+    'Jiangsu': ['Nanjing', 'Suzhou', 'Wuxi']
+  },
+  'Japan': {
+    'Tokyo': ['Tokyo', 'Yokohama', 'Kawasaki'],
+    'Osaka': ['Osaka', 'Sakai', 'Higashiosaka'],
+    'Aichi': ['Nagoya', 'Toyota', 'Okazaki'],
+    'Hokkaido': ['Sapporo'],
+    'Fukuoka': ['Fukuoka', 'Kitakyushu']
+  },
+  'South Korea': {
+    'Seoul': ['Seoul', 'Incheon'],
+    'Gyeonggi': ['Suwon', 'Yongin', 'Goyang'],
+    'Busan': ['Busan'],
+    'Daegu': ['Daegu'],
+    'Daejeon': ['Daejeon']
+  },
+  'Singapore': {
+    'Singapore': ['Singapore']
+  },
+  'New Zealand': {
+    'Auckland': ['Auckland', 'Manukau'],
+    'Wellington': ['Wellington', 'Lower Hutt'],
+    'Canterbury': ['Christchurch'],
+    'Waikato': ['Hamilton']
+  },
+  'South Africa': {
+    'Gauteng': ['Johannesburg', 'Pretoria', 'Soweto'],
+    'Western Cape': ['Cape Town', 'Stellenbosch'],
+    'KwaZulu-Natal': ['Durban', 'Pietermaritzburg'],
+    'Eastern Cape': ['Port Elizabeth', 'East London']
+  },
+  'Israel': {
+    'Central': ['Tel Aviv', 'Petah Tikva', 'Holon'],
+    'Jerusalem': ['Jerusalem'],
+    'Haifa': ['Haifa'],
+    'Southern': ['Beersheba', 'Ashdod', 'Ashkelon']
+  },
+  'United Arab Emirates': {
+    'Dubai': ['Dubai'],
+    'Abu Dhabi': ['Abu Dhabi'],
+    'Sharjah': ['Sharjah'],
+    'Ajman': ['Ajman']
+  },
+  'Saudi Arabia': {
+    'Riyadh': ['Riyadh'],
+    'Makkah': ['Jeddah', 'Mecca'],
+    'Eastern Province': ['Dammam', 'Khobar', 'Dhahran']
+  },
+  'Russia': {
+    'Moscow': ['Moscow'],
+    'Saint Petersburg': ['Saint Petersburg'],
+    'Novosibirsk': ['Novosibirsk'],
+    'Yekaterinburg': ['Yekaterinburg'],
+    'Kazan': ['Kazan']
+  },
+  'Turkey': {
+    'Istanbul': ['Istanbul'],
+    'Ankara': ['Ankara'],
+    'Izmir': ['Izmir'],
+    'Bursa': ['Bursa'],
+    'Antalya': ['Antalya']
+  },
+  'Argentina': {
+    'Buenos Aires': ['Buenos Aires', 'La Plata', 'Mar del Plata'],
+    'Córdoba': ['Córdoba'],
+    'Santa Fe': ['Rosario', 'Santa Fe'],
+    'Mendoza': ['Mendoza']
+  },
+  'Chile': {
+    'Santiago': ['Santiago', 'Puente Alto', 'San Bernardo'],
+    'Valparaíso': ['Valparaíso', 'Viña del Mar'],
+    'Biobío': ['Concepción', 'Talcahuano']
+  },
+  'Colombia': {
+    'Bogotá': ['Bogotá'],
+    'Antioquia': ['Medellín', 'Bello'],
+    'Valle del Cauca': ['Cali', 'Palmira'],
+    'Atlántico': ['Barranquilla']
+  },
+  'Remote': {
+    'Anywhere': ['Remote', 'Work from home']
   }
 };
 
@@ -91,9 +295,6 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
   const [selectedCity, setSelectedCity] = useState('');
   const [customLocation, setCustomLocation] = useState('');
   const [useCustomLocation, setUseCustomLocation] = useState(false);
-
-  // Sources
-  const [sources, setSources] = useState<('LinkedIn' | 'Indeed' | 'Glassdoor')[]>(['LinkedIn', 'Indeed', 'Glassdoor']);
 
   // Reset sub-selections when parent changes
   useEffect(() => {
@@ -131,17 +332,9 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
       location = parts.join(', ');
     }
 
-    if (keyword && location && sources.length > 0) {
-      onSearch(keyword, location, sources);
+    if (keyword && location) {
+      onSearch(keyword, location);
     }
-  };
-
-  const toggleSource = (source: 'LinkedIn' | 'Indeed' | 'Glassdoor') => {
-    setSources(prev =>
-      prev.includes(source)
-        ? prev.filter(s => s !== source)
-        : [...prev, source]
-    );
   };
 
   const getJobOptions = () => {
@@ -170,7 +363,7 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
   const isFormValid = () => {
     const hasKeyword = useCustomKeywords ? customKeywords.trim() !== '' : selectedCategory !== '';
     const hasLocation = useCustomLocation ? customLocation.trim() !== '' : selectedCountry !== '';
-    return hasKeyword && hasLocation && sources.length > 0;
+    return hasKeyword && hasLocation;
   };
 
   return (
@@ -335,34 +528,6 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
         </div>
       </div>
 
-      {/* Source Checkboxes */}
-      <div className="flex items-center gap-6 pt-1">
-        <span className="text-sm text-muted-foreground">Sources:</span>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="linkedin"
-            checked={sources.includes('LinkedIn')}
-            onCheckedChange={() => toggleSource('LinkedIn')}
-          />
-          <Label htmlFor="linkedin" className="cursor-pointer text-sm">LinkedIn</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="indeed"
-            checked={sources.includes('Indeed')}
-            onCheckedChange={() => toggleSource('Indeed')}
-          />
-          <Label htmlFor="indeed" className="cursor-pointer text-sm">Indeed</Label>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="glassdoor"
-            checked={sources.includes('Glassdoor')}
-            onCheckedChange={() => toggleSource('Glassdoor')}
-          />
-          <Label htmlFor="glassdoor" className="cursor-pointer text-sm">Glassdoor</Label>
-        </div>
-      </div>
     </form>
   );
 };

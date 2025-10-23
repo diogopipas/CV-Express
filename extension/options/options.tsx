@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import browser from 'webextension-polyfill';
 
 const Options: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<any>(null);
@@ -11,7 +12,7 @@ const Options: React.FC = () => {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'AUTH_STATUS' });
+      const response = await browser.runtime.sendMessage({ type: 'AUTH_STATUS' });
       if (response.success) {
         setAuthStatus(response.data);
       }

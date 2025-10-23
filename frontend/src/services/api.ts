@@ -28,10 +28,11 @@ export interface Job {
   title: string;
   company: string;
   location: string;
+  country?: string;
   description: string;
   salary?: string;
   jobUrl: string;
-  source: 'LinkedIn' | 'Indeed' | 'Glassdoor' | 'Adzuna';
+  source: 'Adzuna' | 'Arbeitnow' | 'JSearch' | 'Mock';
   postedDate?: string;
   scrapedDate: string;
   saved: boolean;
@@ -46,7 +47,6 @@ export interface Job {
 export interface ScrapeParams {
   keyword: string;
   location: string;
-  sources?: ('LinkedIn' | 'Indeed' | 'Glassdoor')[];
   resumeId?: string;
 }
 
@@ -161,6 +161,7 @@ export const jobService = {
     limit?: number;
     source?: string;
     location?: string;
+    country?: string;
     search?: string;
     resumeId?: string;
   }) => {
@@ -193,6 +194,16 @@ export const jobService = {
 
   deleteJob: async (id: string) => {
     const response = await api.delete(`/jobs/${id}`);
+    return response.data;
+  },
+
+  getCountries: async () => {
+    const response = await api.get<{ success: boolean; data: Array<{ country: string; count: number }> }>('/jobs/countries');
+    return response.data;
+  },
+
+  detectLocation: async () => {
+    const response = await api.get<{ success: boolean; data: { country: string; countryCode: string; city?: string; region?: string; isLocal: boolean; fallback?: boolean } }>('/jobs/detect-location');
     return response.data;
   },
 };

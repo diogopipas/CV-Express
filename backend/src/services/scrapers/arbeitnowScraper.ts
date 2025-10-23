@@ -120,17 +120,19 @@ const filterJobs = (jobs: ArbeitnowJob[], keyword: string, location: string): Ar
       
       const totalMatches = titleMatchCount + descMatchCount + tagMatchCount;
       
-      // Match if: title has any term OR at least 40% of terms match overall
-      keywordMatches = titleMatchCount > 0 || totalMatches >= Math.max(1, Math.ceil(keywordTerms.length * 0.4));
+      // Match if: title has any term OR at least 25% of terms match overall (reduced from 40%)
+      keywordMatches = titleMatchCount > 0 || totalMatches >= Math.max(1, Math.ceil(keywordTerms.length * 0.25));
     }
     
-    // Check if location matches (more lenient: include remote jobs by default)
+    // Check if location matches (very lenient: include remote jobs and broad matches)
     const jobLocationLower = job.location.toLowerCase();
     const locationMatches = 
       job.remote || // Include all remote jobs
       location.toLowerCase() === 'remote' || // If searching for remote, include all remote jobs
       locationLower.length < 3 || // If location is too short, include all
+      locationLower === 'anywhere' || // If searching anywhere, include all
       jobLocationLower.includes(locationLower) ||
+      locationLower.includes(jobLocationLower) || // Also match if search location contains job location
       isLocationInCountry(jobLocationLower, locationLower);
     
     return keywordMatches && locationMatches;

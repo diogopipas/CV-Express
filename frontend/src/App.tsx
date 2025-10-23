@@ -1,10 +1,14 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import Home from './pages/Home';
 import Saved from './pages/Saved';
 import Resumes from './pages/Resumes';
 import Applications from './pages/Applications';
+import Queue from './pages/Queue';
+import Inbox from './pages/Inbox';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Onboarding from './pages/Onboarding';
 import Navbar from './components/Navbar';
 import { ThemeProvider } from './components/ThemeProvider';
 import GlobalLoadingOverlay from './components/GlobalLoadingOverlay';
@@ -17,6 +21,7 @@ function AppContent() {
         {/* Auth routes without Navbar */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/onboarding" element={<Onboarding />} />
         
         {/* Main app routes with Navbar */}
         <Route
@@ -29,6 +34,8 @@ function AppContent() {
                   <Route path="/" element={<Home />} />
                   <Route path="/jobs" element={<Resumes />} />
                   <Route path="/applications" element={<Applications />} />
+                  <Route path="/queue" element={<Queue />} />
+                  <Route path="/inbox" element={<Inbox />} />
                   <Route path="/saved" element={<Saved />} />
                 </Routes>
               </main>
@@ -43,6 +50,7 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
+      <Toaster position="top-right" richColors />
       <AppContent />
     </ThemeProvider>
   );

@@ -1,17 +1,14 @@
-import { scrapeLinkedIn } from './linkedinScraper';
-import { scrapeIndeed } from './indeedScraper';
-import { scrapeGlassdoor } from './glassdoorScraper';
 import { scrapeMockJobs } from './mockScraper';
 import { scrapeAdzuna } from './adzunaScraper';
 import { scrapeArbeitnow } from './arbeitnowScraper';
 import { scrapeJSearch } from './jsearchScraper';
 import { deduplicateJobs } from './deduplicator';
+import { extractCountry } from './countryExtractor';
 import Job from '../../models/Job';
 
 interface ScrapeParams {
   keyword: string;
   location: string;
-  sources?: ('LinkedIn' | 'Indeed' | 'Glassdoor')[];
   resumeId?: string;
   useCache?: boolean; // Enable cache for demo resumes
 }
@@ -20,6 +17,7 @@ interface JobListing {
   title: string;
   company: string;
   location: string;
+  country?: string;
   description: string;
   salary?: string;
   jobUrl: string;
@@ -87,10 +85,12 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
       }
       
       // Create a new job instance with the same data but new resumeId
+      const country = job.country || extractCountry(job.location);
       const jobData = {
         title: job.title,
         company: job.company,
         location: job.location,
+        country: country,
         description: job.description,
         salary: job.salary,
         jobUrl: job.jobUrl,
@@ -131,7 +131,7 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
   return clonedJobs;
 };
 
-export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'Indeed', 'Glassdoor'], resumeId, useCache = true }: ScrapeParams) => {
+export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true }: ScrapeParams) => {
   const allJobs: JobListing[] = [];
   const errors: any[] = [];
 
@@ -211,37 +211,11 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
       );
     }
     
-    // If no APIs are configured, try Puppeteer scrapers as fallback
+    // If no APIs are configured, warn the user
     if (scraperPromises.length === 0) {
-      console.log('⚠️ No job APIs configured. Trying Puppeteer scrapers...');
-      console.log('💡 Tip: Set up Adzuna, Arbeitnow, or JSearch for better results');
-      
-      if (sources.includes('LinkedIn')) {
-        scraperPromises.push(
-          scrapeLinkedIn(keyword, location).catch((error: any) => {
-            errors.push({ source: 'LinkedIn', error: error.message });
-            return [];
-          })
-        );
-      }
-
-      if (sources.includes('Indeed')) {
-        scraperPromises.push(
-          scrapeIndeed(keyword, location).catch((error: any) => {
-            errors.push({ source: 'Indeed', error: error.message });
-            return [];
-          })
-        );
-      }
-
-      if (sources.includes('Glassdoor')) {
-        scraperPromises.push(
-          scrapeGlassdoor(keyword, location).catch((error: any) => {
-            errors.push({ source: 'Glassdoor', error: error.message });
-            return [];
-          })
-        );
-      }
+      console.log('⚠️ No job APIs configured.');
+      console.log('💡 Tip: Set up Adzuna, Arbeitnow, or JSearch API credentials in your .env file for job search');
+      console.log('📝 Will fall back to mock scraper for testing...');
     }
     
     // Execute all scrapers in parallel
@@ -286,17 +260,27 @@ export const scrapeJobs = async ({ keyword, location, sources = ['LinkedIn', 'In
     try {
       const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
       if (!existingJob) {
-        // Add resumeId to the job data
-        const jobData = resumeId ? { ...job, resumeId } : job;
+        // Extract country from location and add to job data
+        const country = extractCountry(job.location);
+        const jobData = {
+          ...job,
+          country,
+          ...(resumeId && { resumeId })
+        };
         const newJob = await Job.create(jobData);
         savedJobs.push(newJob);
         newJobsCount++;
       } else {
-        // Update existing job with resumeId if provided and not already set
-        if (resumeId && !existingJob.resumeId) {
+        // Update existing job with resumeId and country if provided
+        if (resumeId) {
           existingJob.resumeId = resumeId as any;
-          await existingJob.save();
         }
+        // Update country if it's not set or is 'Unknown'
+        const extractedCountry = extractCountry(job.location);
+        if (!existingJob.country || existingJob.country === 'Unknown') {
+          existingJob.country = extractedCountry;
+        }
+        await existingJob.save();
         savedJobs.push(existingJob);
         existingJobsCount++;
       }

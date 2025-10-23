@@ -1,19 +1,20 @@
 import express, { Request, Response } from 'express';
 import Job from '../models/Job';
 import { scrapeJobs } from '../services/scrapers/scraperManager';
+import axios from 'axios';
 
 const router = express.Router();
 
 // POST /api/scrape - Trigger scraping
 router.post('/scrape', async (req: Request, res: Response) => {
   try {
-    const { keyword, location, sources, resumeId, useCache = true } = req.body;
+    const { keyword, location, resumeId, useCache = true } = req.body;
 
     if (!keyword || !location) {
       return res.status(400).json({ error: 'Keyword and location are required' });
     }
 
-    const result = await scrapeJobs({ keyword, location, sources, resumeId, useCache });
+    const result = await scrapeJobs({ keyword, location, resumeId, useCache });
 
     // Create a more informative message
     let message = `Found ${result.count} ${result.count === 1 ? 'job' : 'jobs'}`;
@@ -52,7 +53,8 @@ router.get('/jobs', async (req: Request, res: Response) => {
       page = 1, 
       limit = 20, 
       source, 
-      location, 
+      location,
+      country,
       search,
       resumeId,
       sortBy = 'scrapedDate',
@@ -67,6 +69,10 @@ router.get('/jobs', async (req: Request, res: Response) => {
 
     if (location) {
       query.location = { $regex: location, $options: 'i' };
+    }
+
+    if (country && country !== 'all') {
+      query.country = country;
     }
 
     if (search) {
@@ -111,6 +117,135 @@ router.get('/jobs/saved', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get saved jobs error:', error);
     res.status(500).json({ error: 'Failed to fetch saved jobs' });
+  }
+});
+
+// GET /api/jobs/countries - Get list of all countries with job counts
+router.get('/jobs/countries', async (req: Request, res: Response) => {
+  try {
+    const countries = await Job.aggregate([
+      {
+        $group: {
+          _id: '$country',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $match: {
+          _id: { $nin: [null, ''] }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      }
+    ]);
+
+    const countriesData = countries.map(c => ({
+      country: c._id,
+      count: c.count
+    }));
+
+    res.json({
+      success: true,
+      data: countriesData
+    });
+  } catch (error) {
+    console.error('Get countries error:', error);
+    res.status(500).json({ error: 'Failed to fetch countries' });
+  }
+});
+
+// GET /api/jobs/detect-location - Detect user's country from IP
+router.get('/jobs/detect-location', async (req: Request, res: Response) => {
+  try {
+    // Get IP from request
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0];
+
+    // For local development, try to get the actual public IP
+    const isLocalIp = !clientIp || clientIp === '::1' || clientIp === '127.0.0.1' || clientIp.startsWith('::ffff:127.0.0.1');
+    
+    try {
+      // Try to detect location even for local IPs by using ip-api without IP parameter
+      // This will use the server's public IP
+      const geoUrl = isLocalIp 
+        ? 'http://ip-api.com/json/' // Use server's public IP
+        : `http://ip-api.com/json/${clientIp}`;
+      
+      const geoResponse = await axios.get(geoUrl, {
+        timeout: 5000
+      });
+
+      if (geoResponse.data && geoResponse.data.status === 'success') {
+        return res.json({
+          success: true,
+          data: {
+            country: geoResponse.data.country,
+            countryCode: geoResponse.data.countryCode,
+            city: geoResponse.data.city,
+            region: geoResponse.data.regionName,
+            ip: isLocalIp ? 'local' : clientIp,
+            isLocal: isLocalIp
+          }
+        });
+      } else {
+        throw new Error('Geolocation failed');
+      }
+    } catch (geoError) {
+      // Fallback to 'all' instead of forcing US
+      console.error('Geolocation error:', geoError);
+      res.json({
+        success: true,
+        data: {
+          country: 'all', // Don't force a country, show all
+          countryCode: 'ALL',
+          ip: clientIp,
+          isLocal: isLocalIp,
+          fallback: true
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Detect location error:', error);
+    res.status(500).json({ error: 'Failed to detect location' });
+  }
+});
+
+// GET /api/jobs/resume/:resumeId - Get jobs for a specific resume
+router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
+  try {
+    const { resumeId } = req.params;
+    const { 
+      page = 1, 
+      limit = 100,
+      sortBy = 'scrapedDate',
+      order = 'desc'
+    } = req.query;
+
+    const query = { resumeId };
+    const sortOrder = order === 'asc' ? 1 : -1;
+    const sortOptions: any = { [sortBy as string]: sortOrder };
+
+    const jobs = await Job.find(query)
+      .sort(sortOptions)
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await Job.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: jobs,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get resume jobs error:', error);
+    res.status(500).json({ error: 'Failed to fetch resume jobs' });
   }
 });
 
@@ -166,44 +301,6 @@ router.delete('/jobs/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Delete job error:', error);
     res.status(500).json({ error: 'Failed to delete job' });
-  }
-});
-
-// GET /api/jobs/resume/:resumeId - Get jobs for a specific resume
-router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
-  try {
-    const { resumeId } = req.params;
-    const { 
-      page = 1, 
-      limit = 100,
-      sortBy = 'scrapedDate',
-      order = 'desc'
-    } = req.query;
-
-    const query = { resumeId };
-    const sortOrder = order === 'asc' ? 1 : -1;
-    const sortOptions: any = { [sortBy as string]: sortOrder };
-
-    const jobs = await Job.find(query)
-      .sort(sortOptions)
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
-
-    const total = await Job.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: jobs,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        pages: Math.ceil(total / Number(limit))
-      }
-    });
-  } catch (error) {
-    console.error('Get resume jobs error:', error);
-    res.status(500).json({ error: 'Failed to fetch resume jobs' });
   }
 });
 

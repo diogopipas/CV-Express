@@ -134,10 +134,21 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
       if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
         const primaryRole = resume.suggestedRoles[0];
         
+        // Detect user location
+        let userLocation = 'United States'; // Default fallback
+        try {
+          const locationResponse = await jobService.detectLocation();
+          if (locationResponse.data.country && locationResponse.data.country !== 'all') {
+            userLocation = locationResponse.data.country;
+          }
+        } catch (error) {
+          console.error('Failed to detect location, using default');
+        }
+        
         // Update loading message for job search
         setLoading(true, `Finding ${primaryRole} Jobs...`, 'Searching across multiple job platforms for the best matches');
         
-        toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
+        toast.info(`🔍 Finding ${primaryRole} jobs in ${userLocation}...`, {
           description: 'Searching across thousands of listings',
           duration: 5000
         });
@@ -146,8 +157,7 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
           // Trigger job scraping using the existing scrape endpoint
           const scrapeResponse = await jobService.scrape({
             keyword: primaryRole,
-            location: 'United States',
-            sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
+            location: userLocation,
             resumeId: resume._id,
             useCache: true // Use cache for uploaded resumes to save API resources
           });

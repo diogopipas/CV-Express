@@ -4,6 +4,7 @@ export interface UserData {
   id: string;
   name: string;
   email: string;
+  applicationEmail?: string; // Dedicated email for applications
   phone?: string;
   linkedinUrl?: string;
   applicationPreferences?: {

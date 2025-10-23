@@ -8,14 +8,97 @@ export interface IApplicationPreferences {
   linkedinUrl?: string;
 }
 
+export interface IWorkExperience {
+  title: string;
+  company: string;
+  startDate?: Date;
+  endDate?: Date;
+  current?: boolean;
+  description?: string;
+  location?: string;
+}
+
+export interface IEducation {
+  degree: string;
+  institution: string;
+  graduationYear?: number;
+  field?: string;
+}
+
+export interface IUserProfile {
+  location?: string;
+  yearsOfExperience?: number;
+  currentJobTitle?: string;
+  workExperience?: IWorkExperience[];
+  education?: IEducation[];
+  certifications?: string[];
+  languages?: string[];
+  skills?: string[];
+}
+
+export interface IJobPreferences {
+  desiredRoles?: string[];
+  desiredLocations?: string[];
+  remotePreference?: 'remote' | 'hybrid' | 'onsite' | 'any';
+  salaryExpectations?: {
+    min?: number;
+    max?: number;
+    currency?: string;
+  };
+  workAuthorization?: string;
+  availabilityDate?: Date;
+  willingToRelocate?: boolean;
+  noticePeriod?: string;
+}
+
+export interface ILinkedInProfile {
+  linkedinId?: string;
+  headline?: string;
+  summary?: string;
+  profileUrl?: string;
+  connections?: number;
+  lastSync?: Date;
+}
+
+export interface INotificationPreferences {
+  emailOnInterview?: boolean;
+  emailOnRejection?: boolean;
+  emailOnOffer?: boolean;
+  emailOnFollowUp?: boolean;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
   createdAt: Date;
   applicationPreferences?: IApplicationPreferences;
+  profile?: IUserProfile;
+  jobPreferences?: IJobPreferences;
+  linkedinProfile?: ILinkedInProfile;
+  linkedinConnected?: boolean;
+  applicationEmail?: string;
+  notificationPreferences?: INotificationPreferences;
+  onboardingCompleted?: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
+
+const WorkExperienceSchema = new Schema({
+  title: { type: String, required: true },
+  company: { type: String, required: true },
+  startDate: { type: Date },
+  endDate: { type: Date },
+  current: { type: Boolean, default: false },
+  description: { type: String },
+  location: { type: String }
+}, { _id: false });
+
+const EducationSchema = new Schema({
+  degree: { type: String, required: true },
+  institution: { type: String, required: true },
+  graduationYear: { type: Number },
+  field: { type: String }
+}, { _id: false });
 
 const userSchema = new Schema<IUser>(
   {
@@ -43,22 +126,83 @@ const userSchema = new Schema<IUser>(
       signature: { type: String },
       phone: { type: String },
       linkedinUrl: { type: String }
-    }
+    },
+    profile: {
+      location: { type: String },
+      yearsOfExperience: { type: Number },
+      currentJobTitle: { type: String },
+      workExperience: [WorkExperienceSchema],
+      education: [EducationSchema],
+      certifications: [{ type: String }],
+      languages: [{ type: String }],
+      skills: [{ type: String }]
+    },
+    jobPreferences: {
+      desiredRoles: [{ type: String }],
+      desiredLocations: [{ type: String }],
+      remotePreference: { 
+        type: String, 
+        enum: ['remote', 'hybrid', 'onsite', 'any'],
+        default: 'any'
+      },
+      salaryExpectations: {
+        min: { type: Number },
+        max: { type: Number },
+        currency: { type: String, default: 'USD' }
+      },
+      workAuthorization: { type: String },
+      availabilityDate: { type: Date },
+      willingToRelocate: { type: Boolean, default: false },
+      noticePeriod: { type: String }
+    },
+    linkedinProfile: {
+      linkedinId: { type: String },
+      headline: { type: String },
+      summary: { type: String },
+      profileUrl: { type: String },
+      connections: { type: Number },
+      lastSync: { type: Date }
+    },
+    linkedinConnected: { type: Boolean, default: false },
+    applicationEmail: { type: String, unique: true, sparse: true },
+    notificationPreferences: {
+      emailOnInterview: { type: Boolean, default: true },
+      emailOnRejection: { type: Boolean, default: false },
+      emailOnOffer: { type: Boolean, default: true },
+      emailOnFollowUp: { type: Boolean, default: true }
+    },
+    onboardingCompleted: { type: Boolean, default: false }
   },
   {
     timestamps: true,
   }
 );
 
+// Generate unique application email
+const generateApplicationEmail = (userId: string): string => {
+  const cleanId = userId.slice(-8); // Use last 8 chars of userId
+  return `applications-${cleanId}@cvexpress.com`;
+};
+
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
+    // Generate application email if not set
+    if (!this.applicationEmail && this._id) {
+      this.applicationEmail = generateApplicationEmail(this._id.toString());
+    }
     return next();
   }
 
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    
+    // Generate application email on user creation
+    if (this.isNew && this._id) {
+      this.applicationEmail = generateApplicationEmail(this._id.toString());
+    }
+    
     next();
   } catch (error: any) {
     next(error);

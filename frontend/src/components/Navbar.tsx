@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun, Inbox } from 'lucide-react';
+import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun, Inbox, ListChecks, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -42,6 +42,17 @@ const Navbar = () => {
             </Link>
             
             <Link
+              to="/queue"
+              className={cn(
+                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
+                location.pathname === '/queue' ? 'text-primary' : 'text-muted-foreground'
+              )}
+            >
+              <ListChecks className="h-4 w-4" />
+              <span>Queue</span>
+            </Link>
+
+            <Link
               to="/applications"
               className={cn(
                 "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
@@ -50,6 +61,17 @@ const Navbar = () => {
             >
               <Inbox className="h-4 w-4" />
               <span>Applications</span>
+            </Link>
+
+            <Link
+              to="/inbox"
+              className={cn(
+                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
+                location.pathname === '/inbox' ? 'text-primary' : 'text-muted-foreground'
+              )}
+            >
+              <Mail className="h-4 w-4" />
+              <span>Inbox</span>
             </Link>
             
             <Link

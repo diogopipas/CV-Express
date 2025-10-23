@@ -1,5 +1,37 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface IWorkExperience {
+  title: string;
+  company: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
+  description?: string;
+  location?: string;
+}
+
+export interface IEducation {
+  degree: string;
+  institution: string;
+  graduationYear?: number;
+  field?: string;
+}
+
+export interface IParsedData {
+  fullText?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  workExperience?: IWorkExperience[];
+  education?: IEducation[];
+  certifications?: string[];
+  languages?: string[];
+  technicalSkills?: string[];
+  softSkills?: string[];
+  summary?: string;
+}
+
 export interface IResume extends Document {
   filename: string;
   originalName: string;
@@ -22,7 +54,40 @@ export interface IResume extends Document {
   resumeUsageLimit: number;
   plan: 'FREE' | 'PRO';
   isLatest: boolean;
+  parsedData?: IParsedData;
 }
+
+const WorkExperienceSchema = new Schema({
+  title: { type: String },
+  company: { type: String },
+  startDate: { type: String },
+  endDate: { type: String },
+  current: { type: Boolean },
+  description: { type: String },
+  location: { type: String }
+}, { _id: false });
+
+const EducationSchema = new Schema({
+  degree: { type: String },
+  institution: { type: String },
+  graduationYear: { type: Number },
+  field: { type: String }
+}, { _id: false });
+
+const ParsedDataSchema = new Schema({
+  fullText: { type: String },
+  name: { type: String },
+  email: { type: String },
+  phone: { type: String },
+  location: { type: String },
+  workExperience: [WorkExperienceSchema],
+  education: [EducationSchema],
+  certifications: [{ type: String }],
+  languages: [{ type: String }],
+  technicalSkills: [{ type: String }],
+  softSkills: [{ type: String }],
+  summary: { type: String }
+}, { _id: false });
 
 const ResumeSchema: Schema = new Schema({
   filename: { type: String, required: true },
@@ -54,6 +119,7 @@ const ResumeSchema: Schema = new Schema({
     default: 'FREE'
   },
   isLatest: { type: Boolean, default: false },
+  parsedData: ParsedDataSchema
 });
 
 export default mongoose.model<IResume>('Resume', ResumeSchema);

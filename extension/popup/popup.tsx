@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import browser from 'webextension-polyfill';
 import './popup.css';
 
 interface AuthStatus {
@@ -22,7 +23,7 @@ const Popup: React.FC = () => {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await chrome.runtime.sendMessage({ type: 'AUTH_STATUS' });
+      const response = await browser.runtime.sendMessage({ type: 'AUTH_STATUS' });
       if (response.success) {
         setAuthStatus(response.data);
       }
@@ -66,11 +67,11 @@ const Popup: React.FC = () => {
   };
 
   const openWebApp = () => {
-    chrome.tabs.create({ url: 'http://localhost:3000' });
+    browser.tabs.create({ url: 'http://localhost:3000' });
   };
 
   const openOptions = () => {
-    chrome.runtime.openOptionsPage();
+    browser.runtime.openOptionsPage();
   };
 
   if (loading) {

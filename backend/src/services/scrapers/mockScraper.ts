@@ -6,7 +6,7 @@ interface JobListing {
   description: string;
   salary?: string;
   jobUrl: string;
-  source: 'LinkedIn' | 'Indeed' | 'Glassdoor';
+  source: 'Mock';
   postedDate?: Date;
 }
 
@@ -28,8 +28,6 @@ const salaries = [
   '$90,000 - $130,000', '$110,000 - $160,000', '$140,000 - $200,000',
   '$150,000 - $220,000'
 ];
-
-const sources: ('LinkedIn' | 'Indeed' | 'Glassdoor')[] = ['LinkedIn', 'Indeed', 'Glassdoor'];
 
 const generateJobDescription = (title: string, company: string): string => {
   return `${company} is seeking a talented ${title} to join our dynamic team. 
@@ -92,26 +90,12 @@ export const scrapeMockJobs = async (keyword: string, location: string): Promise
   for (let i = 0; i < jobCount; i++) {
     const company = getRandomElement(companies);
     const jobTitle = generateJobTitle(keyword);
-    const source = getRandomElement(sources);
     const companySlug = company.toLowerCase().replace(/\s+/g, '-');
     const titleSlug = jobTitle.toLowerCase().replace(/\s+/g, '-');
     const jobId = Math.floor(Math.random() * 1000000000);
     
-    // Generate more realistic-looking URLs based on source
-    let jobUrl = '';
-    switch (source) {
-      case 'LinkedIn':
-        jobUrl = `https://www.linkedin.com/jobs/view/${jobId}`;
-        break;
-      case 'Indeed':
-        jobUrl = `https://www.indeed.com/viewjob?jk=${jobId}`;
-        break;
-      case 'Glassdoor':
-        jobUrl = `https://www.glassdoor.com/job-listing/${titleSlug}-${companySlug}-JV_IC${jobId}`;
-        break;
-      default:
-        jobUrl = `https://jobs.example.com/${jobId}`;
-    }
+    // Generate mock job URL
+    const jobUrl = `https://mock-jobs.example.com/${companySlug}/${titleSlug}/${jobId}`;
     
     jobs.push({
       title: jobTitle,
@@ -120,7 +104,7 @@ export const scrapeMockJobs = async (keyword: string, location: string): Promise
       description: generateJobDescription(jobTitle, company),
       salary: Math.random() > 0.3 ? getRandomElement(salaries) : undefined,
       jobUrl: jobUrl,
-      source: source,
+      source: 'Mock',
       postedDate: getRandomDate()
     });
   }
@@ -128,23 +112,3 @@ export const scrapeMockJobs = async (keyword: string, location: string): Promise
   console.log(`Mock scraper generated ${jobs.length} jobs for "${keyword}" in "${location}"`);
   return jobs;
 };
-
-export const scrapeAllMockJobs = async (keyword: string, location: string): Promise<{
-  linkedin: JobListing[];
-  indeed: JobListing[];
-  glassdoor: JobListing[];
-}> => {
-  // Generate jobs for each source
-  const [linkedinJobs, indeedJobs, glassdoorJobs] = await Promise.all([
-    scrapeMockJobs(keyword, location),
-    scrapeMockJobs(keyword, location),
-    scrapeMockJobs(keyword, location)
-  ]);
-
-  return {
-    linkedin: linkedinJobs.map(job => ({ ...job, source: 'LinkedIn' as const })),
-    indeed: indeedJobs.map(job => ({ ...job, source: 'Indeed' as const })),
-    glassdoor: glassdoorJobs.map(job => ({ ...job, source: 'Glassdoor' as const }))
-  };
-};
-

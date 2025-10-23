@@ -87,19 +87,116 @@ router.post('/login', async (req: Request, res: Response) => {
 // @route   GET /api/auth/me
 // @desc    Get current logged in user
 // @access  Private
-router.get('/me', protect, async (req: AuthRequest, res: Response) => {
+router.get('/me', protect, async (req: Request, res: Response) => {
   try {
-    if (!req.user) {
+    const user = (req as AuthRequest).user;
+    if (!user) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
     res.json({
-      _id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
+      _id: user._id,
+      name: user.name,
+      email: user.email,
     });
   } catch (error: any) {
     console.error('Get current user error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// @route   GET /api/auth/profile
+// @desc    Get complete user profile with all fields
+// @access  Private
+router.get('/profile', protect, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as AuthRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const user = await User.findById(authUser._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      applicationEmail: user.applicationEmail,
+      applicationPreferences: user.applicationPreferences,
+      profile: user.profile,
+      jobPreferences: user.jobPreferences,
+      linkedinProfile: user.linkedinProfile,
+      linkedinConnected: user.linkedinConnected,
+      notificationPreferences: user.notificationPreferences,
+      onboardingCompleted: user.onboardingCompleted,
+      createdAt: user.createdAt,
+    });
+  } catch (error: any) {
+    console.error('Get profile error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// @route   PATCH /api/auth/profile
+// @desc    Update user profile
+// @access  Private
+router.patch('/profile', protect, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as AuthRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const user = await User.findById(authUser._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Update allowed fields
+    const {
+      name,
+      applicationPreferences,
+      profile,
+      jobPreferences,
+      notificationPreferences,
+      onboardingCompleted
+    } = req.body;
+
+    if (name !== undefined) user.name = name;
+    if (applicationPreferences !== undefined) {
+      user.applicationPreferences = { ...user.applicationPreferences, ...applicationPreferences };
+    }
+    if (profile !== undefined) {
+      user.profile = { ...user.profile, ...profile };
+    }
+    if (jobPreferences !== undefined) {
+      user.jobPreferences = { ...user.jobPreferences, ...jobPreferences };
+    }
+    if (notificationPreferences !== undefined) {
+      user.notificationPreferences = { ...user.notificationPreferences, ...notificationPreferences };
+    }
+    if (onboardingCompleted !== undefined) user.onboardingCompleted = onboardingCompleted;
+
+    await user.save();
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      applicationEmail: user.applicationEmail,
+      applicationPreferences: user.applicationPreferences,
+      profile: user.profile,
+      jobPreferences: user.jobPreferences,
+      linkedinProfile: user.linkedinProfile,
+      linkedinConnected: user.linkedinConnected,
+      notificationPreferences: user.notificationPreferences,
+      onboardingCompleted: user.onboardingCompleted,
+    });
+  } catch (error: any) {
+    console.error('Update profile error:', error);
     res.status(500).json({ message: error.message || 'Server error' });
   }
 });

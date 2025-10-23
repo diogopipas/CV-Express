@@ -11,7 +11,8 @@ import {
   Play,
   Eye,
   Search,
-  Target
+  Target,
+  Info
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { useJobStore } from '../store/useJobStore';
@@ -58,7 +59,7 @@ const Resumes = () => {
       setJobsLoading(true);
       const response = await jobService.getJobsByResume(resumeId, {
         page: 1,
-        limit: 100 // Load all jobs for this resume
+        limit: 10000 // Load all jobs for this resume
       });
       
       if (response.data && response.data.length > 0) {
@@ -322,6 +323,17 @@ const Resumes = () => {
       setUploadingDemo(true);
       setGlobalLoading(true, 'Uploading Demo Resume...', 'Creating sample resume with skills analysis');
       
+      // Detect user location
+      let userLocation = 'United States'; // Default fallback
+      try {
+        const locationResponse = await jobService.detectLocation();
+        if (locationResponse.data.country && locationResponse.data.country !== 'all') {
+          userLocation = locationResponse.data.country;
+        }
+      } catch (error) {
+        console.error('Failed to detect location, using default');
+      }
+      
       // Create a demo resume content
       const demoResumeContent = `
 JOHN DOE
@@ -411,8 +423,7 @@ ACHIEVEMENTS
         try {
           const scrapeResponse = await jobService.scrape({
             keyword: primaryRole,
-            location: 'United States',
-            sources: ['LinkedIn', 'Indeed', 'Glassdoor'],
+            location: userLocation,
             resumeId: resume._id,
             useCache: true // Use cache for demo resume to save API resources
           });
@@ -472,7 +483,7 @@ ACHIEVEMENTS
     }
   };
 
-  const handleSearch = async (keyword: string, location: string, sources: ('LinkedIn' | 'Indeed' | 'Glassdoor')[]) => {
+  const handleSearch = async (keyword: string, location: string) => {
     if (!selectedResumeId) {
       toast.error('Please select a resume first');
       return;
@@ -490,7 +501,6 @@ ACHIEVEMENTS
       const response = await jobService.scrape({
         keyword,
         location,
-        sources,
         resumeId: selectedResumeId,
         useCache: true // Use cache for manual searches too
       });
@@ -831,10 +841,13 @@ ACHIEVEMENTS
                 
                 {selectedResumeId ? (
                   <>
-                    <p className="text-sm text-muted-foreground">
-                      Find jobs tailored to your resume. Select job field, location, and sources.
-                    </p>
-                    <SearchBar onSearch={handleSearch as any} isLoading={isSearching} />
+                    <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 flex items-start gap-2">
+                      <Info className="h-4 w-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-400">
+                        Jobs are automatically searched in your location. Use the search below to find jobs worldwide in any field.
+                      </p>
+                    </div>
+                    <SearchBar onSearch={handleSearch} isLoading={isSearching} />
                   </>
                 ) : (
                   <div className="text-center py-8">

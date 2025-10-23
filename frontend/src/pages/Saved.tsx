@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { toast } from 'sonner';
-import { BookmarkIcon, MapPin, Filter } from 'lucide-react';
+import { BookmarkIcon, MapPin } from 'lucide-react';
 import JobList from '../components/JobList';
+import FilterPanel from '../components/FilterPanel';
 import { jobService } from '../services/api';
 import { useJobStore } from '../store/useJobStore';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Badge } from '../components/ui/badge';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Saved = () => {
@@ -14,6 +13,7 @@ const Saved = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [paginatedJobs, setPaginatedJobs] = useState<typeof savedJobs>([]);
   const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('scrapedDate');
   const jobListRef = useRef<HTMLDivElement>(null);
   const JOBS_PER_PAGE = 6;
 
@@ -28,78 +28,31 @@ const Saved = () => {
     const endIndex = startIndex + JOBS_PER_PAGE;
     setPaginatedJobs(filtered.slice(startIndex, endIndex));
     setTotalPages(Math.ceil(filtered.length / JOBS_PER_PAGE));
-  }, [savedJobs, currentPage, countryFilter]);
+  }, [savedJobs, currentPage, countryFilter, sortBy]);
 
-  // Extract country from location string
-  const extractCountry = (location: string): string => {
-    if (!location) return 'Unknown';
-    
-    // Common country mappings and patterns
-    const countryPatterns: { [key: string]: string } = {
-      'United States': 'United States',
-      'USA': 'United States',
-      'US': 'United States',
-      'United Kingdom': 'United Kingdom',
-      'UK': 'United Kingdom',
-      'Canada': 'Canada',
-      'Australia': 'Australia',
-      'Germany': 'Germany',
-      'France': 'France',
-      'India': 'India',
-      'Netherlands': 'Netherlands',
-      'Spain': 'Spain',
-      'Italy': 'Italy',
-      'Brazil': 'Brazil',
-      'Mexico': 'Mexico',
-      'Singapore': 'Singapore',
-      'Ireland': 'Ireland',
-      'Switzerland': 'Switzerland',
-      'Sweden': 'Sweden',
-      'Poland': 'Poland',
-      'Portugal': 'Portugal',
-      'Austria': 'Austria',
-      'Belgium': 'Belgium',
-      'Denmark': 'Denmark',
-      'Norway': 'Norway',
-      'Finland': 'Finland',
-    };
-
-    // Check if location contains any country pattern
-    for (const [pattern, country] of Object.entries(countryPatterns)) {
-      if (location.includes(pattern)) {
-        return country;
-      }
-    }
-
-    // If no pattern matches, try to extract last part after comma
-    const parts = location.split(',').map(p => p.trim());
-    if (parts.length > 1) {
-      const lastPart = parts[parts.length - 1];
-      // Check if last part matches any country
-      for (const [pattern, country] of Object.entries(countryPatterns)) {
-        if (lastPart === pattern) {
-          return country;
-        }
-      }
-      return lastPart;
-    }
-
-    return location;
-  };
-
-  // Get unique countries from saved jobs
-  const getUniqueCountries = () => {
-    const countries = savedJobs.map(job => extractCountry(job.location));
-    const uniqueCountries = Array.from(new Set(countries)).sort();
-    return uniqueCountries;
-  };
-
-  // Filter jobs by country
+  // Filter and sort jobs
   const getFilteredJobs = () => {
-    if (countryFilter === 'all') {
-      return savedJobs;
+    let filtered = savedJobs;
+    
+    // Apply country filter
+    if (countryFilter && countryFilter !== 'all') {
+      filtered = filtered.filter(job => job.country === countryFilter);
     }
-    return savedJobs.filter(job => extractCountry(job.location) === countryFilter);
+    
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'title':
+          return a.title.localeCompare(b.title);
+        case 'company':
+          return a.company.localeCompare(b.company);
+        case 'scrapedDate':
+        default:
+          return new Date(b.scrapedDate).getTime() - new Date(a.scrapedDate).getTime();
+      }
+    });
+    
+    return sorted;
   };
 
   const loadSavedJobs = async () => {
@@ -178,41 +131,20 @@ const Saved = () => {
         </p>
       </div>
 
-      {/* Country Filter */}
-      {savedJobs.length > 0 && getUniqueCountries().length > 1 && (
-        <div className="flex items-center justify-center gap-3 p-4 rounded-xl bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-orange-500/20">
-              <MapPin className="h-4 w-4 text-orange-400" />
-            </div>
-            <span className="text-sm font-medium">Filter by Country</span>
-          </div>
-          <Select value={countryFilter} onValueChange={setCountryFilter}>
-            <SelectTrigger className="w-[250px] border-orange-500/30 focus:ring-orange-500/50">
-              <SelectValue placeholder="All countries" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  <span>All Countries</span>
-                </div>
-              </SelectItem>
-              {getUniqueCountries().map((country) => (
-                <SelectItem key={country} value={country}>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    <span>{country}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {countryFilter !== 'all' && (
-            <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/40">
-              {getFilteredJobs().length} job{getFilteredJobs().length !== 1 ? 's' : ''}
-            </Badge>
-          )}
+      {/* Filters */}
+      {savedJobs.length > 0 && (
+        <div className="max-w-xs mx-auto">
+          <FilterPanel 
+            showCountryFilter={true}
+            onFilterChange={(filters) => {
+              if (filters.country !== undefined) {
+                setCountryFilter(filters.country);
+              }
+              if (filters.sortBy !== undefined) {
+                setSortBy(filters.sortBy);
+              }
+            }}
+          />
         </div>
       )}
 

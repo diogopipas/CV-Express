@@ -1,21 +1,22 @@
+import browser from 'webextension-polyfill';
 import { auth } from '../utils/auth';
 import { storage } from '../utils/storage';
 import { apiClient } from './api-client';
 import { ExtensionMessage, ExtensionResponse } from '../utils/types';
 
 /**
- * Background service worker for CV-Express extension
+ * Background service worker for CV-Express extension (Chrome & Safari compatible)
  * Handles API communication, authentication, and message passing
  */
 
 console.log('CV-Express extension background service worker loaded');
 
 // Listen for extension installation
-chrome.runtime.onInstalled.addListener((details) => {
+browser.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('CV-Express extension installed');
     // Open welcome page
-    chrome.tabs.create({
+    browser.tabs.create({
       url: 'http://localhost:3000', // CV-Express web app
     });
   } else if (details.reason === 'update') {
@@ -24,20 +25,15 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 
 // Listen for messages from content scripts and popup
-chrome.runtime.onMessage.addListener((
+browser.runtime.onMessage.addListener((
   message: ExtensionMessage,
-  sender,
-  sendResponse: (response: ExtensionResponse) => void
+  sender
 ) => {
-  handleMessage(message, sender)
-    .then(sendResponse)
+  return handleMessage(message, sender)
     .catch((error) => {
       console.error('Error handling message:', error);
-      sendResponse({ success: false, error: error.message });
+      return { success: false, error: error.message };
     });
-  
-  // Return true to indicate we'll send a response asynchronously
-  return true;
 });
 
 /**
@@ -45,7 +41,7 @@ chrome.runtime.onMessage.addListener((
  */
 async function handleMessage(
   message: ExtensionMessage,
-  sender: chrome.runtime.MessageSender
+  sender: browser.Runtime.MessageSender
 ): Promise<ExtensionResponse> {
   console.log('Received message:', message.type, message.payload);
 
@@ -105,7 +101,7 @@ async function handleGetJobData(tabId?: number): Promise<ExtensionResponse> {
 
   try {
     // Send message to content script to extract job data
-    const response = await chrome.tabs.sendMessage(tabId, {
+    const response = await browser.tabs.sendMessage(tabId, {
       type: 'EXTRACT_JOB_DATA',
     });
 
@@ -145,7 +141,7 @@ async function handleDetectForm(tabId?: number): Promise<ExtensionResponse> {
 
   try {
     // Send message to content script to detect form
-    const response = await chrome.tabs.sendMessage(tabId, {
+    const response = await browser.tabs.sendMessage(tabId, {
       type: 'DETECT_APPLICATION_FORM',
     });
 
@@ -156,7 +152,7 @@ async function handleDetectForm(tabId?: number): Promise<ExtensionResponse> {
 }
 
 // Update badge when authentication status changes
-chrome.storage.onChanged.addListener((changes, areaName) => {
+browser.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && changes.cv_express_token) {
     updateBadge();
   }
@@ -169,10 +165,10 @@ async function updateBadge() {
   const authenticated = await auth.isAuthenticated();
   
   if (authenticated) {
-    chrome.action.setBadgeText({ text: '✓' });
-    chrome.action.setBadgeBackgroundColor({ color: '#10b981' });
+    browser.action.setBadgeText({ text: '✓' });
+    browser.action.setBadgeBackgroundColor({ color: '#10b981' });
   } else {
-    chrome.action.setBadgeText({ text: '' });
+    browser.action.setBadgeText({ text: '' });
   }
 }
 
@@ -180,9 +176,9 @@ async function updateBadge() {
 updateBadge();
 
 // Context menu for quick actions
-// Check if contextMenus API is available before using it
-if (chrome.contextMenus) {
-  chrome.contextMenus.create({
+// Note: Safari has limited contextMenus support, wrapped in try-catch for safety
+try {
+  browser.contextMenus.create({
     id: 'cv-express-apply',
     title: 'Apply with CV-Express',
     contexts: ['page', 'link'],
@@ -195,13 +191,15 @@ if (chrome.contextMenus) {
     ],
   });
 
-  chrome.contextMenus.onClicked.addListener((info, tab) => {
+  browser.contextMenus.onClicked.addListener((info, tab) => {
     if (info.menuItemId === 'cv-express-apply' && tab?.id) {
       // Send message to content script to trigger auto-fill
-      chrome.tabs.sendMessage(tab.id, {
+      browser.tabs.sendMessage(tab.id, {
         type: 'TRIGGER_AUTO_FILL',
       });
     }
   });
+} catch (error) {
+  console.warn('Context menus not fully supported in this browser:', error);
 }
 

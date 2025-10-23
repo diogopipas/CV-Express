@@ -25,9 +25,13 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@types/mailparser": "^3.4.6",
     "concurrently": "^8.2.2"
   },
   "dependencies": {
     "mongodb": "^6.20.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.52.5"
   }
 }
