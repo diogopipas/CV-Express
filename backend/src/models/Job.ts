@@ -5,6 +5,7 @@ export interface IJob extends Document {
   company: string;
   location: string;
   country?: string;
+  region?: string; // State/region/province for more granular filtering
   description: string;
   salary?: string;
   jobUrl: string;
@@ -25,6 +26,7 @@ const JobSchema: Schema = new Schema({
   company: { type: String, required: true },
   location: { type: String, required: true },
   country: { type: String },
+  region: { type: String }, // State/region/province
   description: { type: String, required: true },
   salary: { type: String },
   jobUrl: { type: String, required: true, unique: true },
@@ -50,6 +52,8 @@ JobSchema.index({ title: 'text', company: 'text', description: 'text' });
 JobSchema.index({ source: 1, scrapedDate: -1 });
 JobSchema.index({ resumeId: 1, scrapedDate: -1 });
 JobSchema.index({ country: 1, scrapedDate: -1 });
+JobSchema.index({ region: 1, scrapedDate: -1 });
+JobSchema.index({ country: 1, region: 1, scrapedDate: -1 });
 
 export default mongoose.model<IJob>('Job', JobSchema);
 

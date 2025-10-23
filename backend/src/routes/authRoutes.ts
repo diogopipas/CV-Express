@@ -201,5 +201,100 @@ router.patch('/profile', protect, async (req: Request, res: Response) => {
   }
 });
 
+// @route   PUT /api/auth/profile
+// @desc    Update user basic profile information (name and email)
+// @access  Private
+router.put('/profile', protect, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as AuthRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const { name, email } = req.body;
+
+    // Validate input
+    if (!name || !email) {
+      return res.status(400).json({ message: 'Please provide both name and email' });
+    }
+
+    const user = await User.findById(authUser._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if email is being changed and if it's already taken
+    if (email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return res.status(400).json({ message: 'Email already in use' });
+      }
+    }
+
+    user.name = name;
+    user.email = email;
+    await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error: any) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// @route   PUT /api/auth/password
+// @desc    Change user password
+// @access  Private
+router.put('/password', protect, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as AuthRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Please provide current and new password' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    // Get user with password field
+    const user = await User.findById(authUser._id).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully',
+    });
+  } catch (error: any) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
 export default router;
 

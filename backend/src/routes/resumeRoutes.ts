@@ -4,8 +4,12 @@ import path from 'path';
 import fs from 'fs';
 import Resume from '../models/Resume';
 import { parseResumeWithAI, extractAllSkills, suggestRoles } from '../services/resumeParser';
+import { protect } from '../middleware/auth';
 
 const router = express.Router();
+
+// Apply auth middleware to all routes
+router.use(protect);
 
 // Dynamically import pdf-parse to handle potential ES module issues
 let pdfParse: any = null;

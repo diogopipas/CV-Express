@@ -3,7 +3,7 @@
 ## Overview
 Successfully implemented a comprehensive auto-application pipeline for CV-Express, enabling users to collect profile data, manage application queues, and track email responses through a dedicated inbox.
 
-## Implementation Status: ✅ Complete (11 of 12 tasks)
+## Implementation Status: ✅ Complete (12 of 13 tasks)
 
 ---
 
@@ -123,6 +123,62 @@ Successfully implemented a comprehensive auto-application pipeline for CV-Expres
 - Updates queue item status (processing → completed/failed)
 - Prepares comprehensive auto-fill data from user profile + resume
 - Error handling with retry mechanism
+
+### 2.6 Automatic Queue Analysis (Auto-Queue) ✅
+**Files Modified:**
+- `/backend/src/routes/jobRoutes.ts` - Enhanced scrape endpoint with:
+  - Automatic job analysis after scraping
+  - Match score calculation for each job
+  - Auto-queue jobs meeting minimum threshold
+  - Duplicate prevention (skip if already queued/applied)
+  - Configurable minimum match score via environment variable
+
+**New Function:**
+- `autoAnalyzeAndQueue()` - Core auto-queue functionality:
+  - Calculates match scores using matching service
+  - Filters jobs by minimum score threshold (default: 60%)
+  - Creates ApplicationQueue entries with status 'pending_review'
+  - Prepares auto-fill data from user profile and resume
+  - Returns detailed statistics and queued job list
+
+**Frontend Integration:**
+- `/frontend/src/pages/Resumes.tsx` - Enhanced search handler:
+  - Displays auto-queue results in notifications
+  - Shows count of queued jobs
+  - Indicates minimum match score threshold
+  - Provides follow-up notification with queue details
+
+**Configuration:**
+- Environment variable: `MIN_AUTO_QUEUE_MATCH_SCORE` (default: 60)
+  - Controls selectivity of auto-queue
+  - Range: 0-100 (recommended: 60-70)
+  - Higher value = fewer jobs queued (more selective)
+  - Lower value = more jobs queued (less selective)
+
+**Flow:**
+```
+Job Search → Scrape Jobs → Save to DB → Auto-Analyze Each Job
+                                          ↓
+                                    Calculate Match Score
+                                          ↓
+                                    Score >= Threshold?
+                                          ↓
+                                    Yes → Add to Queue (pending_review)
+                                    No → Skip (still visible in results)
+                                          ↓
+                                    User Reviews Queue → Approve/Reject
+```
+
+**Benefits:**
+- ✅ Eliminates manual job-by-job review during search
+- ✅ AI-powered filtering based on user profile
+- ✅ Maintains user control through review step
+- ✅ Provides transparency with match scores and reasons
+- ✅ Reduces time from search to application
+
+**Documentation:**
+- `/AUTO_QUEUE_FEATURE.md` - Comprehensive technical documentation
+- `/AUTO_QUEUE_QUICK_START.md` - User-friendly quick start guide
 
 ---
 

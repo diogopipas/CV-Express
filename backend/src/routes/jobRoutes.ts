@@ -2,19 +2,129 @@ import express, { Request, Response } from 'express';
 import Job from '../models/Job';
 import { scrapeJobs } from '../services/scrapers/scraperManager';
 import axios from 'axios';
+import { protect } from '../middleware/auth';
+import User from '../models/User';
+import Resume from '../models/Resume';
+import ApplicationQueue from '../models/ApplicationQueue';
+import Application from '../models/Application';
+import { calculateMatchScore } from '../services/matchingService';
+import { prepareAutoFillData } from '../services/queueProcessor';
 
 const router = express.Router();
 
-// POST /api/scrape - Trigger scraping
-router.post('/scrape', async (req: Request, res: Response) => {
-  try {
-    const { keyword, location, resumeId, useCache = true } = req.body;
+// Minimum match score threshold for auto-queueing (configurable)
+const MIN_MATCH_SCORE = parseInt(process.env.MIN_AUTO_QUEUE_MATCH_SCORE || '60', 10);
 
-    if (!keyword || !location) {
-      return res.status(400).json({ error: 'Keyword and location are required' });
+/**
+ * Automatically analyze and queue jobs after scraping
+ */
+async function autoAnalyzeAndQueue(userId: string, jobs: any[], resumeId?: string) {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      console.error('User not found for auto-queue');
+      return { queued: 0, analyzed: jobs.length };
+    }
+
+    let queuedCount = 0;
+    const queueResults = [];
+
+    console.log(`🔍 Analyzing ${jobs.length} jobs for auto-queue...`);
+
+    for (const job of jobs) {
+      try {
+        // Check if already in queue or already applied
+        const existingQueue = await ApplicationQueue.findOne({ userId, jobId: job._id });
+        const existingApplication = await Application.findOne({ userId, jobId: job._id });
+        
+        if (existingQueue || existingApplication) {
+          continue; // Skip if already queued or applied
+        }
+
+        // Calculate match score
+        const { matchScore, matchReasons } = calculateMatchScore(user, job);
+
+        // If match score is above threshold, add to queue
+        if (matchScore >= MIN_MATCH_SCORE) {
+          // Use provided resumeId or user's default resume
+          let targetResumeId = resumeId;
+          if (!targetResumeId) {
+            const defaultResume = await Resume.findOne({ userId, isDefault: true });
+            if (defaultResume) {
+              targetResumeId = String(defaultResume._id);
+            }
+          }
+
+          if (!targetResumeId) {
+            console.warn(`No resume found for user ${userId}, skipping job ${job._id}`);
+            continue;
+          }
+
+          // Create queue item with auto-fill data
+          const queueItem = new ApplicationQueue({
+            userId,
+            jobId: job._id,
+            resumeId: targetResumeId,
+            matchScore,
+            matchReasons,
+            autoFillData: {
+              name: user.name,
+              email: user.applicationEmail || user.email,
+              phone: user.applicationPreferences?.phone,
+              linkedin: user.applicationPreferences?.linkedinUrl,
+              coverLetter: user.applicationPreferences?.defaultCoverLetter
+            },
+            status: 'pending_review'
+          });
+
+          await queueItem.save();
+          queuedCount++;
+          
+          queueResults.push({
+            jobId: job._id,
+            jobTitle: job.title,
+            company: job.company,
+            matchScore
+          });
+
+          console.log(`✅ Queued: ${job.title} at ${job.company} (${matchScore}% match)`);
+        }
+      } catch (error) {
+        console.error(`Error processing job ${job._id} for auto-queue:`, error);
+      }
+    }
+
+    console.log(`📊 Auto-queue complete: ${queuedCount}/${jobs.length} jobs added to queue`);
+
+    return {
+      analyzed: jobs.length,
+      queued: queuedCount,
+      minMatchScore: MIN_MATCH_SCORE,
+      queuedJobs: queueResults
+    };
+  } catch (error) {
+    console.error('Auto-queue error:', error);
+    return { analyzed: jobs.length, queued: 0, error: 'Failed to auto-queue jobs' };
+  }
+}
+
+// POST /api/scrape - Trigger scraping (with authentication for auto-queue)
+router.post('/scrape', protect, async (req: Request, res: Response) => {
+  try {
+    const { keyword, location, resumeId, useCache = true, autoQueue = true } = req.body;
+    const userId = (req as any).user?._id;
+
+    if (!keyword) {
+      return res.status(400).json({ error: 'Keyword is required' });
     }
 
     const result = await scrapeJobs({ keyword, location, resumeId, useCache });
+
+    // Auto-analyze and queue jobs if user is authenticated and autoQueue is enabled
+    let queueInfo = null;
+    if (userId && autoQueue && result.jobs.length > 0) {
+      queueInfo = await autoAnalyzeAndQueue(userId, result.jobs, resumeId);
+    }
 
     // Create a more informative message
     let message = `Found ${result.count} ${result.count === 1 ? 'job' : 'jobs'}`;
@@ -31,6 +141,10 @@ router.post('/scrape', async (req: Request, res: Response) => {
       }
     }
 
+    if (queueInfo && queueInfo.queued > 0) {
+      message += `. ${queueInfo.queued} jobs automatically added to queue`;
+    }
+
     res.json({
       success: true,
       message: message,
@@ -38,7 +152,8 @@ router.post('/scrape', async (req: Request, res: Response) => {
       newCount: result.newCount,
       existingCount: result.existingCount,
       usedCache: result.usedCache,
-      errors: result.errors
+      errors: result.errors,
+      queueInfo: queueInfo
     });
   } catch (error) {
     console.error('Scrape error:', error);
@@ -55,6 +170,7 @@ router.get('/jobs', async (req: Request, res: Response) => {
       source, 
       location,
       country,
+      region,
       search,
       resumeId,
       sortBy = 'scrapedDate',
@@ -73,6 +189,10 @@ router.get('/jobs', async (req: Request, res: Response) => {
 
     if (country && country !== 'all') {
       query.country = country;
+    }
+
+    if (region && region !== 'all') {
+      query.region = region;
     }
 
     if (search) {
@@ -152,6 +272,79 @@ router.get('/jobs/countries', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Get countries error:', error);
     res.status(500).json({ error: 'Failed to fetch countries' });
+  }
+});
+
+// GET /api/jobs/regions - Get list of regions/states for a specific country with job counts
+router.get('/jobs/regions', async (req: Request, res: Response) => {
+  try {
+    const { country } = req.query;
+    
+    if (!country || country === 'all') {
+      // If no country specified, return all regions
+      const regions = await Job.aggregate([
+        {
+          $match: {
+            region: { $nin: [null, ''] }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              country: '$country',
+              region: '$region'
+            },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $sort: { count: -1 }
+        }
+      ]);
+
+      const regionsData = regions.map(r => ({
+        country: r._id.country,
+        region: r._id.region,
+        count: r.count
+      }));
+
+      return res.json({
+        success: true,
+        data: regionsData
+      });
+    }
+
+    // Get regions for specific country
+    const regions = await Job.aggregate([
+      {
+        $match: {
+          country: country as string,
+          region: { $nin: [null, ''] }
+        }
+      },
+      {
+        $group: {
+          _id: '$region',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      }
+    ]);
+
+    const regionsData = regions.map(r => ({
+      region: r._id,
+      count: r.count
+    }));
+
+    res.json({
+      success: true,
+      data: regionsData
+    });
+  } catch (error) {
+    console.error('Get regions error:', error);
+    res.status(500).json({ error: 'Failed to fetch regions' });
   }
 });
 

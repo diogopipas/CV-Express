@@ -3,12 +3,12 @@ import { scrapeAdzuna } from './adzunaScraper';
 import { scrapeArbeitnow } from './arbeitnowScraper';
 import { scrapeJSearch } from './jsearchScraper';
 import { deduplicateJobs } from './deduplicator';
-import { extractCountry } from './countryExtractor';
+import { extractLocationDetails } from './countryExtractor';
 import Job from '../../models/Job';
 
 interface ScrapeParams {
   keyword: string;
-  location: string;
+  location?: string; // Optional now - if not provided, fetches globally
   resumeId?: string;
   useCache?: boolean; // Enable cache for demo resumes
 }
@@ -85,12 +85,13 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
       }
       
       // Create a new job instance with the same data but new resumeId
-      const country = job.country || extractCountry(job.location);
+      const locationDetails = extractLocationDetails(job.location);
       const jobData = {
         title: job.title,
         company: job.company,
         location: job.location,
-        country: country,
+        country: job.country || locationDetails.country,
+        region: job.region || locationDetails.region,
         description: job.description,
         salary: job.salary,
         jobUrl: job.jobUrl,
@@ -131,13 +132,19 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
   return clonedJobs;
 };
 
-export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true }: ScrapeParams) => {
+export const scrapeJobs = async ({ keyword, location = 'global', resumeId, useCache = true }: ScrapeParams) => {
   const allJobs: JobListing[] = [];
   const errors: any[] = [];
 
+  // If location is not provided or is 'global', fetch jobs globally
+  const isGlobalSearch = !location || location.toLowerCase() === 'global' || location.toLowerCase() === 'worldwide' || location.toLowerCase() === 'anywhere';
+  const searchLocation = isGlobalSearch ? 'global' : location;
+
+  console.log(`🌍 Search mode: ${isGlobalSearch ? 'GLOBAL' : `Location-based (${searchLocation})`}`);
+
   // Check cache first if enabled
-  if (useCache) {
-    const cachedJobs = await getCachedJobs(keyword, location);
+  if (useCache && !isGlobalSearch) {
+    const cachedJobs = await getCachedJobs(keyword, searchLocation);
     
     if (cachedJobs && cachedJobs.length > 0) {
       console.log('✨ Using cached jobs to save API resources');
@@ -161,7 +168,7 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     console.log('🎭 Using MOCK scraper for testing (set USE_MOCK_SCRAPER=false to use real APIs)');
     
     try {
-      const mockJobs = await scrapeMockJobs(keyword, location);
+      const mockJobs = await scrapeMockJobs(keyword, searchLocation);
       allJobs.push(...mockJobs);
     } catch (error: any) {
       console.error('Mock scraper error:', error);
@@ -172,7 +179,7 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     console.log('🚀 Multi-API job search initiated...');
     
     const enabledApis: string[] = [];
-    if (USE_ADZUNA_API) enabledApis.push('Adzuna');
+    if (USE_ADZUNA_API && !isGlobalSearch) enabledApis.push('Adzuna'); // Adzuna requires specific location
     if (USE_ARBEITNOW_API) enabledApis.push('Arbeitnow');
     if (USE_JSEARCH_API) enabledApis.push('JSearch');
     
@@ -181,9 +188,10 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     // Build array of scraper promises
     const scraperPromises: Promise<JobListing[]>[] = [];
     
-    if (USE_ADZUNA_API) {
+    // Adzuna requires a specific location, so we skip it for global searches
+    if (USE_ADZUNA_API && !isGlobalSearch) {
       scraperPromises.push(
-        scrapeAdzuna(keyword, location).catch((error: any) => {
+        scrapeAdzuna(keyword, searchLocation).catch((error: any) => {
           console.error('❌ Adzuna error:', error.message);
           errors.push({ source: 'Adzuna', error: error.message });
           return [];
@@ -193,7 +201,7 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     
     if (USE_ARBEITNOW_API) {
       scraperPromises.push(
-        scrapeArbeitnow(keyword, location).catch((error: any) => {
+        scrapeArbeitnow(keyword, isGlobalSearch ? undefined : searchLocation).catch((error: any) => {
           console.error('❌ Arbeitnow error:', error.message);
           errors.push({ source: 'Arbeitnow', error: error.message });
           return [];
@@ -203,7 +211,7 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     
     if (USE_JSEARCH_API) {
       scraperPromises.push(
-        scrapeJSearch(keyword, location).catch((error: any) => {
+        scrapeJSearch(keyword, isGlobalSearch ? undefined : searchLocation).catch((error: any) => {
           console.error('❌ JSearch error:', error.message);
           errors.push({ source: 'JSearch', error: error.message });
           return [];
@@ -242,7 +250,7 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     if (allJobs.length === 0 && errors.length > 0) {
       console.log('⚠️ All scrapers failed or returned no results. Falling back to mock scraper...');
       try {
-        const mockJobs = await scrapeMockJobs(keyword, location);
+        const mockJobs = await scrapeMockJobs(keyword, searchLocation);
         allJobs.push(...mockJobs);
       } catch (mockError: any) {
         console.error('Mock scraper fallback error:', mockError);
@@ -260,25 +268,29 @@ export const scrapeJobs = async ({ keyword, location, resumeId, useCache = true 
     try {
       const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
       if (!existingJob) {
-        // Extract country from location and add to job data
-        const country = extractCountry(job.location);
+        // Extract country and region from location and add to job data
+        const locationDetails = extractLocationDetails(job.location);
         const jobData = {
           ...job,
-          country,
+          country: locationDetails.country,
+          region: locationDetails.region,
           ...(resumeId && { resumeId })
         };
         const newJob = await Job.create(jobData);
         savedJobs.push(newJob);
         newJobsCount++;
       } else {
-        // Update existing job with resumeId and country if provided
+        // Update existing job with resumeId, country, and region if provided
         if (resumeId) {
           existingJob.resumeId = resumeId as any;
         }
-        // Update country if it's not set or is 'Unknown'
-        const extractedCountry = extractCountry(job.location);
+        // Update country and region if they're not set or are 'Unknown'
+        const locationDetails = extractLocationDetails(job.location);
         if (!existingJob.country || existingJob.country === 'Unknown') {
-          existingJob.country = extractedCountry;
+          existingJob.country = locationDetails.country;
+        }
+        if (!existingJob.region && locationDetails.region) {
+          existingJob.region = locationDetails.region;
         }
         await existingJob.save();
         savedJobs.push(existingJob);

@@ -29,6 +29,7 @@ export interface Job {
   company: string;
   location: string;
   country?: string;
+  region?: string; // State/region/province
   description: string;
   salary?: string;
   jobUrl: string;
@@ -46,7 +47,7 @@ export interface Job {
 
 export interface ScrapeParams {
   keyword: string;
-  location: string;
+  location?: string; // Optional now - can search globally
   resumeId?: string;
 }
 
@@ -162,6 +163,7 @@ export const jobService = {
     source?: string;
     location?: string;
     country?: string;
+    region?: string;
     search?: string;
     resumeId?: string;
   }) => {
@@ -204,6 +206,13 @@ export const jobService = {
 
   detectLocation: async () => {
     const response = await api.get<{ success: boolean; data: { country: string; countryCode: string; city?: string; region?: string; isLocal: boolean; fallback?: boolean } }>('/jobs/detect-location');
+    return response.data;
+  },
+
+  getRegions: async (country?: string) => {
+    const response = await api.get<{ success: boolean; data: Array<{ region: string; count: number; country?: string }> }>('/jobs/regions', {
+      params: { country }
+    });
     return response.data;
   },
 };
@@ -289,6 +298,16 @@ export const authService = {
 
   getCurrentUser: async () => {
     const response = await api.get('/auth/me');
+    return response.data;
+  },
+
+  updateProfile: async (data: { name: string; email: string }) => {
+    const response = await api.put('/auth/profile', data);
+    return response.data;
+  },
+
+  changePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    const response = await api.put('/auth/password', data);
     return response.data;
   },
 };

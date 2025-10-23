@@ -12,7 +12,20 @@ import {
   Eye,
   Search,
   Target,
-  Info
+  Info,
+  ListChecks,
+  Mail,
+  Clock,
+  CheckCircle,
+  Building2,
+  MapPin,
+  PlayCircle,
+  MessageSquare,
+  Calendar,
+  ThumbsDown,
+  Gift,
+  ClipboardList,
+  MailOpen
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { useJobStore } from '../store/useJobStore';
@@ -33,6 +46,66 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import SearchBar from '../components/SearchBar';
 import JobList from '../components/JobList';
 import SubscriptionPlansDialog from '../components/SubscriptionPlansDialog';
+import { Card } from '../components/ui/card';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+interface QueueItem {
+  _id: string;
+  jobId: {
+    _id: string;
+    title: string;
+    company: string;
+    location: string;
+    description: string;
+    salary?: string;
+  };
+  matchScore: number;
+  matchReasons: Array<{
+    category: string;
+    score: number;
+    details: string;
+  }>;
+  status: string;
+  queuedAt: string;
+}
+
+interface Email {
+  _id: string;
+  from: string;
+  subject: string;
+  body: string;
+  htmlBody?: string;
+  receivedAt: string;
+  isRead: boolean;
+  category: 'general' | 'interview' | 'rejection' | 'offer' | 'followup' | 'assessment';
+  applicationId?: {
+    _id: string;
+    jobId: {
+      title: string;
+      company: string;
+    };
+  };
+}
+
+const categoryIcons = {
+  general: MessageSquare,
+  interview: Calendar,
+  rejection: ThumbsDown,
+  offer: Gift,
+  followup: Mail,
+  assessment: ClipboardList
+};
+
+const categoryColors = {
+  general: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  interview: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  rejection: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+  offer: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  followup: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  assessment: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300'
+};
 
 const Resumes = () => {
   const location = useLocation();
@@ -52,6 +125,21 @@ const Resumes = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 6;
+  const [activeTab, setActiveTab] = useState<'search' | 'queue' | 'inbox'>('search');
+
+  // Queue state
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [queueStats, setQueueStats] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState('pending_review');
+  const [processing, setProcessing] = useState(false);
+
+  // Inbox state
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [emailStats, setEmailStats] = useState<any>(null);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [isReadFilter, setIsReadFilter] = useState<boolean | undefined>(undefined);
 
   // Load jobs for a specific resume
   const loadJobsForResume = async (resumeId: string) => {
@@ -97,29 +185,27 @@ const Resumes = () => {
   }, []);
 
   useEffect(() => {
+    if (activeTab === 'queue') {
+      fetchQueue();
+    } else if (activeTab === 'inbox') {
+      fetchEmails();
+      fetchEmailStats();
+    }
+  }, [activeTab, statusFilter, categoryFilter, isReadFilter]);
+
+  useEffect(() => {
     // Check if navigated with a newly uploaded resume
     const state = (location as any).state as { 
       selectedResumeId?: string;
       newResumeId?: string;
-      scrapedJobs?: any[];
     } | null;
     
     if (state?.newResumeId && resumes.length > 0) {
-      // New resume uploaded - select it and show scraped jobs
+      // New resume uploaded - select it and load existing jobs
       setSelectedResumeId(state.newResumeId);
       localStorage.setItem('selectedResumeId', state.newResumeId);
-      if (state.scrapedJobs && state.scrapedJobs.length > 0) {
-        setJobs(state.scrapedJobs);
-        setCurrentPage(1);
-        setTotalPages(Math.ceil(state.scrapedJobs.length / itemsPerPage));
-        // Scroll to results after a short delay
-        setTimeout(() => {
-          document.getElementById('search-results')?.scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-          });
-        }, 500);
-      }
+      // Load jobs for this resume
+      loadJobsForResume(state.newResumeId);
       // Clear the state to prevent re-selection on future visits
       window.history.replaceState({}, document.title);
     } else if (state?.selectedResumeId && resumes.length > 0) {
@@ -323,17 +409,6 @@ const Resumes = () => {
       setUploadingDemo(true);
       setGlobalLoading(true, 'Uploading Demo Resume...', 'Creating sample resume with skills analysis');
       
-      // Detect user location
-      let userLocation = 'United States'; // Default fallback
-      try {
-        const locationResponse = await jobService.detectLocation();
-        if (locationResponse.data.country && locationResponse.data.country !== 'all') {
-          userLocation = locationResponse.data.country;
-        }
-      } catch (error) {
-        console.error('Failed to detect location, using default');
-      }
-      
       // Create a demo resume content
       const demoResumeContent = `
 JOHN DOE
@@ -407,70 +482,13 @@ ACHIEVEMENTS
       const resume = response.data;
       addResume(resume);
       
-      toast.success('🎉 Demo resume uploaded successfully!');
+      toast.success('🎉 Demo resume uploaded successfully!', {
+        description: 'Use the search bar to find matching jobs'
+      });
       
-      // Trigger job scraping if roles were suggested
-      if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
-        const primaryRole = resume.suggestedRoles[0];
-        
-        setGlobalLoading(true, `Finding ${primaryRole} Jobs...`, 'Searching across multiple job platforms for the best matches');
-        
-        toast.info(`🔍 Finding real ${primaryRole} jobs from Adzuna...`, {
-          description: 'Searching across thousands of listings',
-          duration: 5000
-        });
-        
-        try {
-          const scrapeResponse = await jobService.scrape({
-            keyword: primaryRole,
-            location: userLocation,
-            resumeId: resume._id,
-            useCache: true // Use cache for demo resume to save API resources
-          });
-          
-          const jobCount = scrapeResponse.data?.length || 0;
-          const usedCache = scrapeResponse.usedCache || false;
-          
-          if (jobCount > 0) {
-            const successMessage = usedCache 
-              ? `✅ Found ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`
-              : `✅ Saved ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`;
-            
-            const description = usedCache 
-              ? 'Loaded from cache (instant results!)'
-              : scrapeResponse.message || '';
-            
-            toast.success(successMessage, {
-              description: description,
-              duration: 4000
-            });
-            setSelectedResumeId(resume._id);
-            // Display the scraped jobs immediately
-            const scrapedJobsData = scrapeResponse.data || [];
-            setJobs(scrapedJobsData);
-            setCurrentPage(1);
-            setTotalPages(Math.ceil(scrapedJobsData.length / itemsPerPage));
-            // Scroll to results
-            setTimeout(() => {
-              document.getElementById('search-results')?.scrollIntoView({ 
-                behavior: 'smooth',
-                block: 'start'
-              });
-            }, 500);
-          } else {
-            toast.warning('⚠️ No jobs found for this role', {
-              description: 'Try searching manually or with different keywords',
-              duration: 5000
-            });
-          }
-        } catch (scrapeError) {
-          console.error('Scraping error:', scrapeError);
-          toast.warning('⚠️ Job search temporarily unavailable', {
-            description: 'Please try again or use manual search',
-            duration: 4000
-          });
-        }
-      }
+      // Select the newly uploaded resume
+      setSelectedResumeId(resume._id);
+      localStorage.setItem('selectedResumeId', resume._id);
       
       setGlobalLoading(false);
       await loadResumes();
@@ -507,20 +525,36 @@ ACHIEVEMENTS
 
       const jobCount = response.data?.length || 0;
       const usedCache = response.usedCache || false;
+      const queueInfo = response.queueInfo;
       
       if (jobCount > 0) {
         setJobs(response.data);
         setCurrentPage(1);
         setTotalPages(Math.ceil(jobCount / itemsPerPage));
         
-        const description = usedCache 
+        let description = usedCache 
           ? 'Loaded from cache (instant results!)'
           : response.message || 'Jobs saved to your account';
         
+        // Add queue information if available
+        if (queueInfo && queueInfo.queued > 0) {
+          description += ` • ${queueInfo.queued} jobs auto-queued for review`;
+        }
+        
         toast.success(`✅ Found ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`, {
           description: description,
-          duration: 4000
+          duration: 5000
         });
+        
+        // Show additional queue info if jobs were queued
+        if (queueInfo && queueInfo.queued > 0) {
+          setTimeout(() => {
+            toast.info(`🎯 Smart Match Complete`, {
+              description: `${queueInfo.queued} jobs scored ${queueInfo.minMatchScore}%+ and were added to your application queue for review`,
+              duration: 6000
+            });
+          }, 1000);
+        }
         
         // Scroll to results
         setTimeout(() => {
@@ -576,6 +610,208 @@ ACHIEVEMENTS
     }
   };
 
+  // Queue functions
+  const fetchQueue = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/applications/queue`, {
+        params: { status: statusFilter },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setQueueItems(response.data.data);
+      setQueueStats(response.data.stats);
+    } catch (error: any) {
+      console.error('Fetch queue error:', error);
+      toast.error('Failed to fetch queue');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReview = async (id: string, action: 'approve' | 'reject') => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${API_URL}/applications/queue/${id}/review`,
+        { action },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Job ${action}d successfully`);
+      fetchQueue();
+    } catch (error: any) {
+      toast.error(`Failed to ${action} job`);
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) {
+      toast.error('No jobs selected');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API_URL}/applications/queue/bulk-approve`,
+        { queueIds: Array.from(selectedIds) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`${selectedIds.size} jobs approved`);
+      setSelectedIds(new Set());
+      fetchQueue();
+    } catch (error: any) {
+      toast.error('Failed to bulk approve');
+    }
+  };
+
+  const handleProcessQueue = async () => {
+    setProcessing(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(
+        `${API_URL}/applications/queue/process`,
+        { batchSize: 10 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(response.data.message);
+      fetchQueue();
+    } catch (error: any) {
+      toast.error('Failed to process queue');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDeleteQueue = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/applications/queue/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Removed from queue');
+      fetchQueue();
+    } catch (error: any) {
+      toast.error('Failed to remove from queue');
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const getMatchColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-orange-600';
+  };
+
+  // Inbox functions
+  const fetchEmails = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const params: any = {};
+      if (categoryFilter !== 'all') params.category = categoryFilter;
+      if (isReadFilter !== undefined) params.isRead = isReadFilter;
+
+      const response = await axios.get(`${API_URL}/emails`, {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEmails(response.data.data);
+    } catch (error: any) {
+      console.error('Fetch emails error:', error);
+      toast.error('Failed to fetch emails');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEmailStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/emails/stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEmailStats(response.data.data);
+    } catch (error: any) {
+      console.error('Fetch stats error:', error);
+    }
+  };
+
+  const handleSelectEmail = async (email: Email) => {
+    setSelectedEmail(email);
+
+    if (!email.isRead) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.patch(
+          `${API_URL}/emails/${email._id}/read`,
+          { isRead: true },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        fetchEmails();
+        fetchEmailStats();
+      } catch (error) {
+        console.error('Mark as read error:', error);
+      }
+    }
+  };
+
+  const handleToggleRead = async (email: Email) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.patch(
+        `${API_URL}/emails/${email._id}/read`,
+        { isRead: !email.isRead },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(`Marked as ${!email.isRead ? 'read' : 'unread'}`);
+      fetchEmails();
+      fetchEmailStats();
+    } catch (error: any) {
+      toast.error('Failed to update email');
+    }
+  };
+
+  const handleDeleteEmail = async (emailId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_URL}/emails/${emailId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success('Email deleted');
+      setSelectedEmail(null);
+      fetchEmails();
+      fetchEmailStats();
+    } catch (error: any) {
+      toast.error('Failed to delete email');
+    }
+  };
+
+  const formatEmailDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 24) {
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -588,52 +824,454 @@ ACHIEVEMENTS
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Compact Hero Header */}
+      {/* Compact Hero Header with Tabs */}
       <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary/10 via-purple-500/10 to-blue-500/10 border border-primary/20">
-        <div className="p-6">
-          <div className="flex items-center justify-between gap-4">
+        <div className="p-6 pb-0">
+          <div className="flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-primary/20 border border-primary/30">
-                <Search className="h-6 w-6 text-primary" />
+                {activeTab === 'search' && <Search className="h-6 w-6 text-primary" />}
+                {activeTab === 'queue' && <ListChecks className="h-6 w-6 text-primary" />}
+                {activeTab === 'inbox' && <Mail className="h-6 w-6 text-primary" />}
               </div>
               <div>
                 <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-                  Search Jobs
+                  {activeTab === 'search' && 'Search Jobs'}
+                  {activeTab === 'queue' && 'Application Queue'}
+                  {activeTab === 'inbox' && 'Inbox'}
               </h1>
                 <p className="text-sm text-muted-foreground mt-1">
-                  AI-powered job search tailored to your resume
+                  {activeTab === 'search' && 'AI-powered job search tailored to your resume'}
+                  {activeTab === 'queue' && 'Review and approve matched jobs'}
+                  {activeTab === 'inbox' && 'Emails sent to your dedicated application address'}
               </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline"
-                size="sm"
-                onClick={handleDemoButtonClick}
-                disabled={uploadingDemo}
-                className="hidden md:flex"
-              >
-                {uploadingDemo ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <Play className="mr-2 h-4 w-4" />
-                    Demo
-                  </>
-                )}
-              </Button>
-              <UploadResumeDialog />
-            </div>
+            {activeTab === 'search' && (
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDemoButtonClick}
+                  disabled={uploadingDemo}
+                  className="hidden md:flex"
+                >
+                  {uploadingDemo ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Demo
+                    </>
+                  )}
+                </Button>
+                <UploadResumeDialog />
+              </div>
+            )}
+          </div>
+          
+          {/* Tabs */}
+          <div className="flex gap-2 border-b border-border/50">
+            <button
+              onClick={() => setActiveTab('search')}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                activeTab === 'search'
+                  ? 'border-primary text-primary font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Search className="h-4 w-4" />
+              Search Jobs
+            </button>
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                activeTab === 'queue'
+                  ? 'border-primary text-primary font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ListChecks className="h-4 w-4" />
+              Queue
+            </button>
+            <button
+              onClick={() => setActiveTab('inbox')}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                activeTab === 'inbox'
+                  ? 'border-primary text-primary font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Mail className="h-4 w-4" />
+              Inbox
+              {emailStats?.unread > 0 && (
+                <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                  {emailStats.unread}
+                </span>
+              )}
+            </button>
           </div>
         </div>
       </div>
 
 
-      {/* No Resumes State */}
-      {resumes.length === 0 ? (
+      {/* Tab Content */}
+      {activeTab === 'queue' ? (
+        <>
+          {/* Queue Header Actions */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
+              {selectedIds.size > 0 && (
+                <Button onClick={handleBulkApprove}>
+                  Approve Selected ({selectedIds.size})
+                </Button>
+              )}
+              {queueStats?.approved > 0 && (
+                <Button onClick={handleProcessQueue} disabled={processing}>
+                  <PlayCircle className="w-4 h-4 mr-2" />
+                  {processing ? 'Processing...' : `Process ${queueStats.approved} Approved`}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Queue Stats */}
+          {queueStats && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              {Object.entries(queueStats).map(([key, value]: any) => (
+                <Card key={key} className="p-4">
+                  <p className="text-sm text-muted-foreground capitalize">{key.replace('_', ' ')}</p>
+                  <p className="text-2xl font-bold">{value}</p>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Queue Filters */}
+          <Card className="p-4">
+            <div className="flex gap-2">
+              {['pending_review', 'approved', 'rejected', 'completed', 'failed'].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 rounded-lg text-sm capitalize ${
+                    statusFilter === status
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  {status.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Queue Items */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+            </div>
+          ) : queueItems.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Clock className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No Jobs in Queue</h3>
+              <p className="text-sm text-muted-foreground">
+                {statusFilter === 'pending_review'
+                  ? 'Add jobs to your queue from the Search Jobs tab'
+                  : `No jobs with status: ${statusFilter}`}
+              </p>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {queueItems.map((item) => (
+                <Card key={item._id} className="p-6">
+                  <div className="flex gap-4">
+                    {statusFilter === 'pending_review' && (
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item._id)}
+                          onChange={() => toggleSelection(item._id)}
+                          className="w-5 h-5 cursor-pointer"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex-1">
+                      {/* Job Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="text-xl font-semibold">{item.jobId.title}</h3>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <Building2 className="w-4 h-4" />
+                              {item.jobId.company}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              {item.jobId.location}
+                            </span>
+                            {item.jobId.salary && <span>{item.jobId.salary}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-2xl font-bold ${getMatchColor(item.matchScore)}`}>
+                            {item.matchScore}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">Match Score</div>
+                        </div>
+                      </div>
+
+                      {/* Match Reasons */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                        {item.matchReasons.map((reason, idx) => (
+                          <div key={idx} className="bg-muted rounded-lg p-2">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium capitalize">{reason.category}</span>
+                              <span className="text-xs font-bold">{reason.score}%</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{reason.details}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Actions */}
+                      {statusFilter === 'pending_review' && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleReview(item._id, 'approve')}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleReview(item._id, 'reject')}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" />
+                            Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteQueue(item._id)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-1" />
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      ) : activeTab === 'inbox' ? (
+        <>
+          {/* Email Stats */}
+          {emailStats && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-2xl font-bold">{emailStats.total}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Unread</p>
+                <p className="text-2xl font-bold text-blue-600">{emailStats.unread}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Interviews</p>
+                <p className="text-2xl font-bold text-purple-600">{emailStats.interviews}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Offers</p>
+                <p className="text-2xl font-bold text-green-600">{emailStats.offers}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Rejections</p>
+                <p className="text-2xl font-bold text-red-600">{emailStats.rejections}</p>
+              </Card>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Email List */}
+            <div className="lg:col-span-1 space-y-4">
+              {/* Filters */}
+              <Card className="p-2">
+                <div className="flex gap-1 mb-2 flex-wrap">
+                  {['all', 'interview', 'offer', 'rejection', 'assessment', 'followup', 'general'].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategoryFilter(cat)}
+                      className={`px-2 py-1 rounded text-xs capitalize ${
+                        categoryFilter === cat
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-muted'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setIsReadFilter(undefined)}
+                    className={`px-2 py-1 rounded text-xs ${
+                      isReadFilter === undefined ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setIsReadFilter(false)}
+                    className={`px-2 py-1 rounded text-xs ${
+                      isReadFilter === false ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                    }`}
+                  >
+                    Unread
+                  </button>
+                  <button
+                    onClick={() => setIsReadFilter(true)}
+                    className={`px-2 py-1 rounded text-xs ${
+                      isReadFilter === true ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                    }`}
+                  >
+                    Read
+                  </button>
+                </div>
+              </Card>
+
+              {/* Email List */}
+              <Card className="p-2 max-h-[600px] overflow-y-auto">
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+                  </div>
+                ) : emails.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Mail className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
+                    <p className="text-sm text-muted-foreground">No emails found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {emails.map((email) => {
+                      const Icon = categoryIcons[email.category];
+                      return (
+                        <button
+                          key={email._id}
+                          onClick={() => handleSelectEmail(email)}
+                          className={`w-full text-left p-3 rounded-lg transition-colors ${
+                            selectedEmail?._id === email._id
+                              ? 'bg-primary/10 border-2 border-primary'
+                              : 'hover:bg-muted border-2 border-transparent'
+                          } ${!email.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <Icon className="w-4 h-4 mt-1 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColors[email.category]}`}>
+                                  {email.category}
+                                </span>
+                                {!email.isRead && (
+                                  <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                                )}
+                              </div>
+                              <p className={`text-sm truncate ${!email.isRead ? 'font-semibold' : ''}`}>
+                                {email.subject}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {email.from}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {formatEmailDate(email.receivedAt)}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Email Detail */}
+            <div className="lg:col-span-2">
+              {selectedEmail ? (
+                <Card className="p-6">
+                  <div className="mb-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <h2 className="text-2xl font-bold mb-2">{selectedEmail.subject}</h2>
+                        <p className="text-sm text-muted-foreground">From: {selectedEmail.from}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(selectedEmail.receivedAt).toLocaleString()}
+                        </p>
+                        {selectedEmail.applicationId && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Related to: {selectedEmail.applicationId.jobId.title} at{' '}
+                            {selectedEmail.applicationId.jobId.company}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleRead(selectedEmail)}
+                        >
+                          {selectedEmail.isRead ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteEmail(selectedEmail._id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="border-t pt-4">
+                      {selectedEmail.htmlBody ? (
+                        <div
+                          className="prose dark:prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: selectedEmail.htmlBody }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap text-sm">{selectedEmail.body}</div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="p-12 text-center h-full flex items-center justify-center">
+                  <div>
+                    <Mail className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Email Selected</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Select an email from the list to view its contents
+                    </p>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Search Jobs Tab Content */}
+          {/* No Resumes State */}
+          {resumes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-12">
           <div className="flex flex-col items-center space-y-6 text-center">
             <div className="rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 p-6 border border-primary/30">
@@ -899,7 +1537,9 @@ ACHIEVEMENTS
               </div>
           </div>
         </>
-        )}
+          )}
+        </>
+      )}
 
 
       {/* Delete Confirmation Dialog */}

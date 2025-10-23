@@ -1,14 +1,11 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import Home from './pages/Home';
-import Saved from './pages/Saved';
 import Resumes from './pages/Resumes';
-import Applications from './pages/Applications';
-import Queue from './pages/Queue';
-import Inbox from './pages/Inbox';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Onboarding from './pages/Onboarding';
+import Profile from './pages/Profile';
 import Navbar from './components/Navbar';
 import { ThemeProvider } from './components/ThemeProvider';
 import GlobalLoadingOverlay from './components/GlobalLoadingOverlay';
@@ -33,10 +30,7 @@ function AppContent() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/jobs" element={<Resumes />} />
-                  <Route path="/applications" element={<Applications />} />
-                  <Route path="/queue" element={<Queue />} />
-                  <Route path="/inbox" element={<Inbox />} />
-                  <Route path="/saved" element={<Saved />} />
+                  <Route path="/profile" element={<Profile />} />
                 </Routes>
               </main>
             </div>

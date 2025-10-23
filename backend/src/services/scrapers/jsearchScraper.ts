@@ -83,7 +83,7 @@ const RESULTS_PER_PAGE = 20; // JSearch default
 const MAX_PAGES_PER_REQUEST = 30; // API limit per request
 const TOTAL_PAGES_TO_FETCH = 50; // Total pages to fetch (500 jobs)
 
-export const scrapeJSearch = async (keyword: string, location: string): Promise<JobListing[]> => {
+export const scrapeJSearch = async (keyword: string, location?: string): Promise<JobListing[]> => {
   const jobs: JobListing[] = [];
 
   // Validate API key
@@ -93,10 +93,9 @@ export const scrapeJSearch = async (keyword: string, location: string): Promise<
   }
 
   try {
-    console.log(`Fetching jobs from JSearch API for "${keyword}" in "${location}"...`);
-    
-    // Build search query
-    const query = `${keyword} in ${location}`;
+    // Build search query - if no location, search globally
+    const query = location ? `${keyword} in ${location}` : keyword;
+    console.log(`Fetching jobs from JSearch API for "${query}"${location ? '' : ' (GLOBAL)'}...`);
     
     // Calculate number of requests needed
     const numRequests = Math.ceil(TOTAL_PAGES_TO_FETCH / MAX_PAGES_PER_REQUEST);

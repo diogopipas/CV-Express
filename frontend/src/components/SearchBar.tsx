@@ -317,53 +317,84 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
     let keyword = '';
     if (useCustomKeywords) {
       keyword = customKeywords;
-    } else if (selectedJobOption) {
+    } else if (selectedJobOption && selectedJobOption !== 'all') {
       keyword = selectedJobOption;
-    } else if (selectedCategory) {
+    } else if (selectedCategory && selectedCategory !== 'custom') {
       keyword = selectedCategory;
     }
 
-    // Build location string
+    // Build location string (optional now - if not provided, searches globally)
     let location = '';
     if (useCustomLocation) {
       location = customLocation;
     } else {
-      const parts = [selectedCity, selectedState, selectedCountry].filter(Boolean);
+      const parts = [
+        selectedCity && selectedCity !== 'all' ? selectedCity : '',
+        selectedState && selectedState !== 'all' ? selectedState : '',
+        selectedCountry && selectedCountry !== 'custom' ? selectedCountry : ''
+      ].filter(Boolean);
       location = parts.join(', ');
     }
 
-    if (keyword && location) {
-      onSearch(keyword, location);
+    // Only keyword is required now, location is optional for global search
+    if (keyword) {
+      onSearch(keyword, location || 'global');
     }
   };
 
   const getJobOptions = () => {
-    if (!selectedCategory || !JOB_CATEGORIES[selectedCategory as keyof typeof JOB_CATEGORIES]) {
+    if (!selectedCategory) {
       return [];
     }
-    const category = JOB_CATEGORIES[selectedCategory as keyof typeof JOB_CATEGORIES];
-    return [...category.titles, ...category.specializations];
+    try {
+      const category = JOB_CATEGORIES[selectedCategory as keyof typeof JOB_CATEGORIES];
+      if (!category || typeof category !== 'object') {
+        return [];
+      }
+      return [...category.titles, ...category.specializations];
+    } catch (error) {
+      console.error('Error getting job options:', error);
+      return [];
+    }
   };
 
   const getStates = () => {
-    if (!selectedCountry || !LOCATIONS[selectedCountry as keyof typeof LOCATIONS]) {
+    if (!selectedCountry) {
       return [];
     }
-    return Object.keys(LOCATIONS[selectedCountry as keyof typeof LOCATIONS]);
+    try {
+      const country = LOCATIONS[selectedCountry as keyof typeof LOCATIONS];
+      if (!country || typeof country !== 'object') {
+        return [];
+      }
+      return Object.keys(country);
+    } catch (error) {
+      console.error('Error getting states:', error);
+      return [];
+    }
   };
 
   const getCities = () => {
     if (!selectedCountry || !selectedState) {
       return [];
     }
-    const country = LOCATIONS[selectedCountry as keyof typeof LOCATIONS];
-    return country[selectedState as keyof typeof country] || [];
+    try {
+      const country = LOCATIONS[selectedCountry as keyof typeof LOCATIONS];
+      if (!country || typeof country !== 'object') {
+        return [];
+      }
+      const cities = country[selectedState as keyof typeof country];
+      return Array.isArray(cities) ? cities : [];
+    } catch (error) {
+      console.error('Error getting cities:', error);
+      return [];
+    }
   };
 
   const isFormValid = () => {
+    // Only keyword is required now, location is optional for global search
     const hasKeyword = useCustomKeywords ? customKeywords.trim() !== '' : selectedCategory !== '';
-    const hasLocation = useCustomLocation ? customLocation.trim() !== '' : selectedCountry !== '';
-    return hasKeyword && hasLocation;
+    return hasKeyword;
   };
 
   return (
@@ -385,13 +416,13 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
                   <SelectItem value="custom">Custom Keywords...</SelectItem>
                 </SelectContent>
               </Select>
-              {selectedCategory && selectedCategory !== 'custom' && (
+              {selectedCategory && selectedCategory !== 'custom' && getJobOptions().length > 0 && (
                 <Select value={selectedJobOption} onValueChange={setSelectedJobOption}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select specific role..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All in {selectedCategory}</SelectItem>
+                    <SelectItem value="all">All in {selectedCategory}</SelectItem>
                     {getJobOptions().map(option => (
                       <SelectItem key={option} value={option}>{option}</SelectItem>
                     ))}
@@ -454,7 +485,7 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
                   <SelectItem value="custom">Custom Location...</SelectItem>
                 </SelectContent>
               </Select>
-              {selectedCountry && selectedCountry !== 'custom' && (
+              {selectedCountry && selectedCountry !== 'custom' && getStates().length > 0 && (
                 <Select value={selectedState} onValueChange={setSelectedState}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select state/region..." />
@@ -466,13 +497,13 @@ const SearchBar = ({ onSearch, isLoading }: SearchBarProps) => {
                   </SelectContent>
                 </Select>
               )}
-              {selectedState && (
+              {selectedState && getCities().length > 0 && (
                 <Select value={selectedCity} onValueChange={setSelectedCity}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select city (optional)..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All in {selectedState}</SelectItem>
+                    <SelectItem value="all">All in {selectedState}</SelectItem>
                     {getCities().map(city => (
                       <SelectItem key={city} value={city}>{city}</SelectItem>
                     ))}

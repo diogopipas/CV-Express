@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Briefcase, BookmarkIcon, FileText, LogOut, User, Moon, Sun, Inbox, ListChecks, Mail } from 'lucide-react';
+import { Briefcase, FileText, LogOut, User, Moon, Sun } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Button } from './ui/button';
@@ -38,51 +38,7 @@ const Navbar = () => {
               )}
             >
               <FileText className="h-4 w-4" />
-              <span>Search Jobs</span>
-            </Link>
-            
-            <Link
-              to="/queue"
-              className={cn(
-                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
-                location.pathname === '/queue' ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
-              <ListChecks className="h-4 w-4" />
-              <span>Queue</span>
-            </Link>
-
-            <Link
-              to="/applications"
-              className={cn(
-                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
-                location.pathname === '/applications' ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
-              <Inbox className="h-4 w-4" />
-              <span>Applications</span>
-            </Link>
-
-            <Link
-              to="/inbox"
-              className={cn(
-                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
-                location.pathname === '/inbox' ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
-              <Mail className="h-4 w-4" />
-              <span>Inbox</span>
-            </Link>
-            
-            <Link
-              to="/saved"
-              className={cn(
-                "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
-                location.pathname === '/saved' ? 'text-primary' : 'text-muted-foreground'
-              )}
-            >
-              <BookmarkIcon className="h-4 w-4" />
-              <span>Saved Jobs</span>
+              <span>Jobs</span>
             </Link>
 
             <Button
@@ -101,10 +57,16 @@ const Navbar = () => {
 
             {isAuthenticated ? (
               <div className="flex items-center space-x-4 border-l pl-4">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{user?.name}</span>
-                </div>
+                <Link
+                  to="/profile"
+                  className={cn(
+                    "flex items-center space-x-2 text-sm font-medium transition-colors hover:text-primary",
+                    location.pathname === '/profile' ? 'text-primary' : 'text-foreground'
+                  )}
+                >
+                  <User className="h-4 w-4" />
+                  <span>{user?.name}</span>
+                </Link>
                 <Button
                   variant="ghost"
                   size="sm"

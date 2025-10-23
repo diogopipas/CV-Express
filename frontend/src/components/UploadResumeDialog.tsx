@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from './ui/dialog';
 import { Button } from './ui/button';
-import { resumeService, jobService } from '../services/api';
+import { resumeService } from '../services/api';
 import { useResumeStore } from '../store/useResumeStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useLoadingStore } from '../store/useLoadingStore';
@@ -123,82 +123,19 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
       addResume(resume);
       
       toast.success('Resume uploaded successfully!', {
-        description: 'Analyzing your skills...'
+        description: 'Use the search bar to find matching jobs'
       });
       
       setOpen(false);
       setFile(null);
       
-      // Step 2: If roles were suggested, automatically trigger job scraping
-      let scrapedJobs = [];
-      if (resume.suggestedRoles && resume.suggestedRoles.length > 0) {
-        const primaryRole = resume.suggestedRoles[0];
-        
-        // Detect user location
-        let userLocation = 'United States'; // Default fallback
-        try {
-          const locationResponse = await jobService.detectLocation();
-          if (locationResponse.data.country && locationResponse.data.country !== 'all') {
-            userLocation = locationResponse.data.country;
-          }
-        } catch (error) {
-          console.error('Failed to detect location, using default');
-        }
-        
-        // Update loading message for job search
-        setLoading(true, `Finding ${primaryRole} Jobs...`, 'Searching across multiple job platforms for the best matches');
-        
-        toast.info(`🔍 Finding ${primaryRole} jobs in ${userLocation}...`, {
-          description: 'Searching across thousands of listings',
-          duration: 5000
-        });
-        
-        try {
-          // Trigger job scraping using the existing scrape endpoint
-          const scrapeResponse = await jobService.scrape({
-            keyword: primaryRole,
-            location: userLocation,
-            resumeId: resume._id,
-            useCache: true // Use cache for uploaded resumes to save API resources
-          });
-          
-          const jobCount = scrapeResponse.data?.length || 0;
-          const usedCache = scrapeResponse.usedCache || false;
-          scrapedJobs = scrapeResponse.data || [];
-          
-          if (jobCount > 0) {
-            const description = usedCache 
-              ? 'Loaded from cache (instant results!)'
-              : `${scrapeResponse.message || ''} - Displaying results now`;
-            
-            toast.success(`✅ Saved ${jobCount} matching ${jobCount === 1 ? 'job' : 'jobs'}!`, {
-              description: description,
-              duration: 4000
-            });
-          } else {
-          toast.warning('⚠️ No jobs found for this role', {
-            description: 'Try searching manually or with different keywords',
-            duration: 5000
-          });
-          }
-        } catch (scrapeError: any) {
-          console.error('Scraping error:', scrapeError);
-          
-          toast.warning('⚠️ Job search temporarily unavailable', {
-            description: 'Please try again or use manual search on the jobs page',
-            duration: 5000
-          });
-        }
-      }
-      
       // Hide loading overlay
       setLoading(false);
       
-      // Navigate to jobs page with the new resume selected and jobs data
+      // Navigate to jobs page with the new resume selected
       navigate('/jobs', { 
         state: { 
-          newResumeId: resume._id,
-          scrapedJobs: scrapedJobs
+          newResumeId: resume._id
         } 
       });
     } catch (error: any) {
@@ -369,7 +306,7 @@ const UploadResumeDialog = ({ children }: UploadResumeDialogProps) => {
               className="bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-600 hover:to-blue-600 text-white shadow-lg shadow-teal-500/30 px-6 group"
             >
               <Upload className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
-              Upload & Find Jobs
+              Upload Resume
               <Sparkles className="ml-2 h-3.5 w-3.5" />
             </Button>
           </div>

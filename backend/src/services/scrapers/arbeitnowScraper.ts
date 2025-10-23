@@ -31,11 +31,11 @@ interface ArbeitnowResponse {
 const ARBEITNOW_BASE_URL = 'https://www.arbeitnow.com/api/job-board-api';
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 
-export const scrapeArbeitnow = async (keyword: string, location: string): Promise<JobListing[]> => {
+export const scrapeArbeitnow = async (keyword: string, location?: string): Promise<JobListing[]> => {
   const jobs: JobListing[] = [];
 
   try {
-    console.log(`Fetching jobs from Arbeitnow API for "${keyword}" in "${location}"...`);
+    console.log(`Fetching jobs from Arbeitnow API for "${keyword}"${location ? ` in "${location}"` : ' (GLOBAL)'}...`);
     
     // Arbeitnow API doesn't require authentication
     const response = await axios.get<ArbeitnowResponse>(ARBEITNOW_BASE_URL, {
@@ -48,8 +48,8 @@ export const scrapeArbeitnow = async (keyword: string, location: string): Promis
     const arbeitnowJobs = response.data.data || [];
     console.log(`📄 Arbeitnow API: Received ${arbeitnowJobs.length} total jobs`);
 
-    // Filter jobs based on keyword and location
-    const filteredJobs = filterJobs(arbeitnowJobs, keyword, location);
+    // Filter jobs based on keyword and location (if location is provided)
+    const filteredJobs = location ? filterJobs(arbeitnowJobs, keyword, location) : filterJobsByKeyword(arbeitnowJobs, keyword);
     console.log(`🔍 Filtered to ${filteredJobs.length} relevant jobs`);
 
     // Transform Arbeitnow jobs to our format
@@ -57,7 +57,7 @@ export const scrapeArbeitnow = async (keyword: string, location: string): Promis
       jobs.push({
         title: job.title,
         company: job.company_name || 'Unknown Company',
-        location: job.location || (job.remote ? 'Remote' : location),
+        location: job.location || (job.remote ? 'Remote' : (location || 'Global')),
         description: job.description || 'No description available',
         salary: undefined, // Arbeitnow doesn't provide salary in API
         jobUrl: job.url,
@@ -84,6 +84,47 @@ export const scrapeArbeitnow = async (keyword: string, location: string): Promis
     
     throw error;
   }
+};
+
+// Helper function to filter jobs by keyword only (global search)
+const filterJobsByKeyword = (jobs: ArbeitnowJob[], keyword: string): ArbeitnowJob[] => {
+  const keywordLower = keyword.toLowerCase();
+  
+  // Split keyword into individual terms for more flexible matching
+  const keywordTerms = keywordLower.split(/\s+/).filter(term => term.length > 2);
+  
+  return jobs.filter(job => {
+    // More flexible keyword matching: match if ANY keyword term appears in title, description, or tags
+    const titleLower = job.title.toLowerCase();
+    const descriptionLower = job.description.toLowerCase();
+    const tagsLower = job.tags.map(tag => tag.toLowerCase());
+    
+    // If keyword is a single word or phrase, use original logic
+    let keywordMatches = false;
+    if (keywordTerms.length === 0 || keyword.length <= 3) {
+      // For short keywords, use exact match
+      keywordMatches = true; // Include all jobs if keyword is too short
+    } else if (keywordTerms.length === 1) {
+      // Single term: match if it appears anywhere
+      keywordMatches = titleLower.includes(keywordLower) || 
+                      descriptionLower.includes(keywordLower) ||
+                      tagsLower.some(tag => tag.includes(keywordLower));
+    } else {
+      // Multiple terms: match if at least one term appears in title or at least 2 terms appear overall
+      const titleMatchCount = keywordTerms.filter(term => titleLower.includes(term)).length;
+      const descMatchCount = keywordTerms.filter(term => descriptionLower.includes(term)).length;
+      const tagMatchCount = keywordTerms.filter(term => 
+        tagsLower.some(tag => tag.includes(term))
+      ).length;
+      
+      const totalMatches = titleMatchCount + descMatchCount + tagMatchCount;
+      
+      // Match if: title has any term OR at least 25% of terms match overall (reduced from 40%)
+      keywordMatches = titleMatchCount > 0 || totalMatches >= Math.max(1, Math.ceil(keywordTerms.length * 0.25));
+    }
+    
+    return keywordMatches;
+  });
 };
 
 // Helper function to filter jobs based on keyword and location

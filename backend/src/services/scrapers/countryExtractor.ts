@@ -329,3 +329,91 @@ export const getCountryCode = (country: string): string => {
   return countryCodeMap[country] || 'XX';
 };
 
+// US States list
+const US_STATES = [
+  'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
+  'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
+  'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
+  'Minnesota', 'Mississippi', 'Missouri', 'Montana', 'Nebraska', 'Nevada', 'New Hampshire',
+  'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio',
+  'Oklahoma', 'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota',
+  'Tennessee', 'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia',
+  'Wisconsin', 'Wyoming'
+];
+
+// Canadian Provinces
+const CANADIAN_PROVINCES = [
+  'Ontario', 'British Columbia', 'Alberta', 'Quebec', 'Manitoba', 'Saskatchewan',
+  'Nova Scotia', 'New Brunswick', 'Newfoundland', 'Prince Edward Island'
+];
+
+// Australian States
+const AUSTRALIAN_STATES = [
+  'New South Wales', 'NSW', 'Victoria', 'VIC', 'Queensland', 'QLD',
+  'Western Australia', 'WA', 'South Australia', 'SA', 'Tasmania', 'TAS',
+  'Northern Territory', 'NT'
+];
+
+// UK Countries/Regions
+const UK_REGIONS = [
+  'England', 'Scotland', 'Wales', 'Northern Ireland'
+];
+
+/**
+ * Extract region/state from a location string based on country
+ * Returns the region name or undefined if not found
+ */
+export const extractRegion = (location: string, country: string): string | undefined => {
+  if (!location) return undefined;
+  
+  const locationLower = location.toLowerCase().trim();
+  
+  // Extract region based on country
+  if (country === 'United States') {
+    for (const state of US_STATES) {
+      if (locationLower.includes(state.toLowerCase())) {
+        return state;
+      }
+    }
+  } else if (country === 'Canada') {
+    for (const province of CANADIAN_PROVINCES) {
+      if (locationLower.includes(province.toLowerCase())) {
+        return province;
+      }
+    }
+  } else if (country === 'Australia') {
+    for (const state of AUSTRALIAN_STATES) {
+      if (locationLower.includes(state.toLowerCase())) {
+        // Normalize abbreviated states to full names
+        if (state === 'NSW') return 'New South Wales';
+        if (state === 'VIC') return 'Victoria';
+        if (state === 'QLD') return 'Queensland';
+        if (state === 'WA') return 'Western Australia';
+        if (state === 'SA') return 'South Australia';
+        if (state === 'TAS') return 'Tasmania';
+        if (state === 'NT') return 'Northern Territory';
+        return state;
+      }
+    }
+  } else if (country === 'United Kingdom') {
+    for (const region of UK_REGIONS) {
+      if (locationLower.includes(region.toLowerCase())) {
+        return region;
+      }
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Extract both country and region from a location string
+ * Returns an object with country and region (region may be undefined)
+ */
+export const extractLocationDetails = (location: string): { country: string; region?: string } => {
+  const country = extractCountry(location);
+  const region = extractRegion(location, country);
+  
+  return { country, region };
+};
+
