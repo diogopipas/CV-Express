@@ -11,13 +11,13 @@ Successfully implemented a comprehensive auto-application pipeline for CV-Expres
 
 ### 1.1 Advanced CV Parser ✅
 **Files Created/Modified:**
-- `/backend/src/services/resumeParser.ts` - OpenAI-powered CV parsing service
+- `/backend/src/services/resumeParser.ts` - Gemini-powered CV parsing service
 - `/backend/src/models/Resume.ts` - Added structured data fields (workExperience, education, certifications, languages, technical/soft skills)
 - `/backend/src/routes/resumeRoutes.ts` - Integrated new parser into upload endpoint
 
 **Features:**
-- OpenAI GPT-3.5 integration for intelligent CV parsing
-- Fallback regex-based parser for when OpenAI is unavailable
+- Gemini 1.0 Pro integration for intelligent CV parsing
+- Fallback regex-based parser for when Gemini is unavailable
 - Extracts: work experience, education, skills (categorized), certifications, languages, contact info
 - Backward compatible with existing resume uploads
 
@@ -276,7 +276,7 @@ No new dependencies required (used existing shadcn/ui components)
 9. ✅ **Status Auto-updates**: Application status updates based on email content
 
 ### Technical Features:
-1. ✅ **AI-Powered CV Parsing**: OpenAI integration with fallback parser
+1. ✅ **AI-Powered CV Parsing**: Gemini integration with fallback parser
 2. ✅ **Weighted Matching Algorithm**: Multi-factor scoring system
 3. ✅ **Queue Management System**: Full CRUD with batch operations
 4. ✅ **Email Webhook Integration**: Ready for email service provider
@@ -326,7 +326,7 @@ npm install
 ### 2. Environment Variables
 Add to `/backend/.env`:
 ```env
-OPENAI_API_KEY=sk-...  # Optional: for advanced CV parsing
+GEMINI_API_KEY=your-gemini-api-key-here  # Optional: for advanced CV parsing
 # Email service webhook secret (when you set up email forwarding)
 EMAIL_WEBHOOK_SECRET=your-secret-here
 ```
@@ -371,8 +371,8 @@ To enable email inbox functionality:
 ## Testing Checklist
 
 ### Backend:
-- [ ] Test OpenAI CV parsing with actual resumes
-- [ ] Test fallback parser when OpenAI is unavailable
+- [ ] Test Gemini CV parsing with actual resumes
+- [ ] Test fallback parser when Gemini is unavailable
 - [ ] Test queue creation with match scoring
 - [ ] Test bulk approve functionality
 - [ ] Test batch processing
@@ -399,7 +399,7 @@ To enable email inbox functionality:
 
 ## Notes
 
-1. **OpenAI Integration**: The CV parser will fall back to basic regex parsing if OPENAI_API_KEY is not provided. This ensures the application works without requiring an OpenAI account.
+1. **Gemini Integration**: The CV parser will fall back to basic regex parsing if GEMINI_API_KEY is not provided. This ensures the application works without requiring a Gemini account.
 
 2. **Email Service**: The email inbox functionality requires an external email forwarding service to be set up. The webhook endpoint is ready and can be integrated with services like ForwardEmail.net, SendGrid Inbound Parse, or AWS SES.
 

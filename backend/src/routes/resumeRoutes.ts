@@ -170,7 +170,6 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
         resume.parsedData = parsedData;
         resume.extractedSkills = skills;
         resume.suggestedRoles = roles;
-        resume.status = 'completed';
         await resume.save();
       } catch (error) {
         console.error('Resume parsing error:', error);
@@ -179,11 +178,9 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
         const basicRoles = suggestBasicRoles(skills);
         resume.extractedSkills = skills;
         resume.suggestedRoles = basicRoles;
-        resume.status = 'completed';
         await resume.save();
       }
     } else {
-      resume.status = 'completed';
       await resume.save();
     }
 

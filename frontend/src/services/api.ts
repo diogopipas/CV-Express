@@ -69,7 +69,7 @@ export interface Resume {
   filePath: string;
   fileSize: number;
   uploadDate: string;
-  status: 'processing' | 'completed' | 'failed';
+  status: 'processing';
   extractedSkills: string[];
   suggestedRoles: string[];
   searchedTitles: string[];

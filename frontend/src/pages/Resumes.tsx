@@ -136,7 +136,6 @@ const Resumes = () => {
 
   // Inbox state
   const [emails, setEmails] = useState<Email[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [emailStats, setEmailStats] = useState<any>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [isReadFilter, setIsReadFilter] = useState<boolean | undefined>(undefined);
@@ -511,6 +510,9 @@ ACHIEVEMENTS
       setIsSearching(true);
       setJobsLoading(true);
       
+      // Show scraping loading overlay
+      setGlobalLoading(true, 'Searching for Jobs', `Looking for ${keyword} in ${location}`, 'scraping');
+      
       toast.info('🔍 Searching for jobs...', {
         description: `Looking for ${keyword} in ${location}`,
         duration: 3000
@@ -583,6 +585,7 @@ ACHIEVEMENTS
     } finally {
       setIsSearching(false);
       setJobsLoading(false);
+      setGlobalLoading(false);
     }
   };
 
@@ -746,24 +749,6 @@ ACHIEVEMENTS
     }
   };
 
-  const handleSelectEmail = async (email: Email) => {
-    setSelectedEmail(email);
-
-    if (!email.isRead) {
-      try {
-        const token = localStorage.getItem('token');
-        await axios.patch(
-          `${API_URL}/emails/${email._id}/read`,
-          { isRead: true },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        fetchEmails();
-        fetchEmailStats();
-      } catch (error) {
-        console.error('Mark as read error:', error);
-      }
-    }
-  };
 
   const handleToggleRead = async (email: Email) => {
     try {
@@ -788,7 +773,6 @@ ACHIEVEMENTS
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success('Email deleted');
-      setSelectedEmail(null);
       fetchEmails();
       fetchEmailStats();
     } catch (error: any) {
@@ -796,21 +780,6 @@ ACHIEVEMENTS
     }
   };
 
-  const formatEmailDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffHours < 24) {
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-  };
 
   if (loading) {
     return (
@@ -887,17 +856,6 @@ ACHIEVEMENTS
               Search Jobs
             </button>
             <button
-              onClick={() => setActiveTab('queue')}
-              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-                activeTab === 'queue'
-                  ? 'border-primary text-primary font-medium'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <ListChecks className="h-4 w-4" />
-              Queue
-            </button>
-            <button
               onClick={() => setActiveTab('inbox')}
               className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
                 activeTab === 'inbox'
@@ -912,6 +870,17 @@ ACHIEVEMENTS
                   {emailStats.unread}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab('queue')}
+              className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+                activeTab === 'queue'
+                  ? 'border-primary text-primary font-medium'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ListChecks className="h-4 w-4" />
+              Queue
             </button>
           </div>
         </div>
@@ -953,7 +922,7 @@ ACHIEVEMENTS
           {/* Queue Filters */}
           <Card className="p-4">
             <div className="flex gap-2">
-              {['pending_review', 'approved', 'rejected', 'completed', 'failed'].map((status) => (
+              {['pending_review', 'approved', 'rejected'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -1078,7 +1047,7 @@ ACHIEVEMENTS
         <>
           {/* Email Stats */}
           {emailStats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
               <Card className="p-4">
                 <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">{emailStats.total}</p>
@@ -1102,125 +1071,92 @@ ACHIEVEMENTS
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Email List */}
-            <div className="lg:col-span-1 space-y-4">
-              {/* Filters */}
-              <Card className="p-2">
-                <div className="flex gap-1 mb-2 flex-wrap">
-                  {['all', 'interview', 'offer', 'rejection', 'assessment', 'followup', 'general'].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`px-2 py-1 rounded text-xs capitalize ${
-                        categoryFilter === cat
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setIsReadFilter(undefined)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === undefined ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setIsReadFilter(false)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === false ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    Unread
-                  </button>
-                  <button
-                    onClick={() => setIsReadFilter(true)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === true ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    Read
-                  </button>
-                </div>
-              </Card>
-
-              {/* Email List */}
-              <Card className="p-2 max-h-[600px] overflow-y-auto">
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-                  </div>
-                ) : emails.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Mail className="h-12 w-12 mx-auto text-muted-foreground/50 mb-2" />
-                    <p className="text-sm text-muted-foreground">No emails found</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {emails.map((email) => {
-                      const Icon = categoryIcons[email.category];
-                      return (
-                        <button
-                          key={email._id}
-                          onClick={() => handleSelectEmail(email)}
-                          className={`w-full text-left p-3 rounded-lg transition-colors ${
-                            selectedEmail?._id === email._id
-                              ? 'bg-primary/10 border-2 border-primary'
-                              : 'hover:bg-muted border-2 border-transparent'
-                          } ${!email.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
-                        >
-                          <div className="flex items-start gap-2">
-                            <Icon className="w-4 h-4 mt-1 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${categoryColors[email.category]}`}>
-                                  {email.category}
-                                </span>
-                                {!email.isRead && (
-                                  <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                                )}
-                              </div>
-                              <p className={`text-sm truncate ${!email.isRead ? 'font-semibold' : ''}`}>
-                                {email.subject}
-                              </p>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {email.from}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {formatEmailDate(email.receivedAt)}
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
+          {/* Filters */}
+          <Card className="p-4 mb-6">
+            <div className="flex gap-1 mb-2 flex-wrap">
+              {['all', 'interview', 'offer', 'rejection', 'assessment', 'followup', 'general'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-2 py-1 rounded text-xs capitalize ${
+                    categoryFilter === cat
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
             </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setIsReadFilter(undefined)}
+                className={`px-2 py-1 rounded text-xs ${
+                  isReadFilter === undefined ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setIsReadFilter(false)}
+                className={`px-2 py-1 rounded text-xs ${
+                  isReadFilter === false ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                }`}
+              >
+                Unread
+              </button>
+              <button
+                onClick={() => setIsReadFilter(true)}
+                className={`px-2 py-1 rounded text-xs ${
+                  isReadFilter === true ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                }`}
+              >
+                Read
+              </button>
+            </div>
+          </Card>
 
-            {/* Email Detail */}
-            <div className="lg:col-span-2">
-              {selectedEmail ? (
-                <Card className="p-6">
-                  <div className="mb-6">
+          {/* Email List */}
+          <div className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+              </div>
+            ) : emails.length === 0 ? (
+              <Card className="p-12 text-center">
+                <Mail className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Emails Found</h3>
+                <p className="text-sm text-muted-foreground">
+                  No emails match your current filters
+                </p>
+              </Card>
+            ) : (
+              emails.map((email) => {
+                const Icon = categoryIcons[email.category];
+                return (
+                  <Card key={email._id} className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
-                        <h2 className="text-2xl font-bold mb-2">{selectedEmail.subject}</h2>
-                        <p className="text-sm text-muted-foreground">From: {selectedEmail.from}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(selectedEmail.receivedAt).toLocaleString()}
+                        <div className="flex items-center gap-2 mb-2">
+                          <Icon className="w-5 h-5" />
+                          <span className={`text-xs px-2 py-1 rounded-full ${categoryColors[email.category]}`}>
+                            {email.category}
+                          </span>
+                          {!email.isRead && (
+                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                          )}
+                        </div>
+                        <h2 className={`text-xl font-bold mb-2 ${!email.isRead ? 'text-blue-600' : ''}`}>
+                          {email.subject}
+                        </h2>
+                        <p className="text-sm text-muted-foreground mb-1">From: {email.from}</p>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          {new Date(email.receivedAt).toLocaleString()}
                         </p>
-                        {selectedEmail.applicationId && (
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Related to: {selectedEmail.applicationId.jobId.title} at{' '}
-                            {selectedEmail.applicationId.jobId.company}
+                        {email.applicationId && (
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Related to: {email.applicationId.jobId.title} at{' '}
+                            {email.applicationId.jobId.company}
                           </p>
                         )}
                       </div>
@@ -1228,43 +1164,33 @@ ACHIEVEMENTS
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleToggleRead(selectedEmail)}
+                          onClick={() => handleToggleRead(email)}
                         >
-                          {selectedEmail.isRead ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
+                          {email.isRead ? <Mail className="w-4 h-4" /> : <MailOpen className="w-4 h-4" />}
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDeleteEmail(selectedEmail._id)}
+                          onClick={() => handleDeleteEmail(email._id)}
                         >
                           Delete
                         </Button>
                       </div>
                     </div>
                     <div className="border-t pt-4">
-                      {selectedEmail.htmlBody ? (
+                      {email.htmlBody ? (
                         <div
                           className="prose dark:prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: selectedEmail.htmlBody }}
+                          dangerouslySetInnerHTML={{ __html: email.htmlBody }}
                         />
                       ) : (
-                        <div className="whitespace-pre-wrap text-sm">{selectedEmail.body}</div>
+                        <div className="whitespace-pre-wrap text-sm">{email.body}</div>
                       )}
                     </div>
-                  </div>
-                </Card>
-              ) : (
-                <Card className="p-12 text-center h-full flex items-center justify-center">
-                  <div>
-                    <Mail className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Email Selected</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Select an email from the list to view its contents
-                    </p>
-                  </div>
-                </Card>
-              )}
-            </div>
+                  </Card>
+                );
+              })
+            )}
           </div>
         </>
       ) : (

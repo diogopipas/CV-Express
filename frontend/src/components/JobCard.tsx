@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Building2, DollarSign, Bookmark, Trash2, CheckCircle2, Briefcase } from 'lucide-react';
+import { MapPin, Building2, DollarSign, Bookmark, Trash2, CheckCircle2, Briefcase, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Job, applicationService } from '../services/api';
 import { cn } from '@/lib/utils';
-import ApplyModal from './ApplyModal';
 import { useResumeStore } from '../store/useResumeStore';
-import { toast } from 'sonner';
 
 interface JobCardProps {
   job: Job;
@@ -16,10 +14,8 @@ interface JobCardProps {
 }
 
 const JobCard = ({ job, onSave, onDelete, onApplicationCreate }: JobCardProps) => {
-  const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [isCheckingApplication, setIsCheckingApplication] = useState(false);
-  const { latestResume } = useResumeStore();
 
   useEffect(() => {
     // Check if user has already applied to this job
@@ -42,19 +38,10 @@ const JobCard = ({ job, onSave, onDelete, onApplicationCreate }: JobCardProps) =
   }, [job._id]);
 
   const handleApplyClick = () => {
-    if (!latestResume) {
-      toast.error('Please upload a resume first');
-      return;
-    }
-    setApplyModalOpen(true);
+    // Open the job URL in a new tab
+    window.open(job.jobUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleApplicationSuccess = () => {
-    setHasApplied(true);
-    if (onApplicationCreate) {
-      onApplicationCreate();
-    }
-  };
 
   const getSourceColor = (source: string) => {
     const colors: { [key: string]: string } = {
@@ -123,7 +110,7 @@ const JobCard = ({ job, onSave, onDelete, onApplicationCreate }: JobCardProps) =
             disabled={isCheckingApplication}
             className="flex-1 h-8 text-xs"
           >
-            <Briefcase className="mr-1 h-3 w-3" />
+            <ExternalLink className="mr-1 h-3 w-3" />
             {isCheckingApplication ? 'Loading...' : 'Apply'}
           </Button>
         )}
@@ -152,15 +139,6 @@ const JobCard = ({ job, onSave, onDelete, onApplicationCreate }: JobCardProps) =
       </CardFooter>
     </Card>
 
-    {latestResume && (
-      <ApplyModal 
-        job={job}
-        resumeId={latestResume._id}
-        open={applyModalOpen}
-        onOpenChange={setApplyModalOpen}
-        onSuccess={handleApplicationSuccess}
-      />
-    )}
   </>
   );
 };

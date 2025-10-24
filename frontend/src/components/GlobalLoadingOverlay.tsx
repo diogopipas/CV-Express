@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import { useLoadingStore } from '../store/useLoadingStore';
+import ScrapingLoadingOverlay from './ScrapingLoadingOverlay';
 
 const GlobalLoadingOverlay = () => {
-  const { isLoading, loadingMessage, loadingSubMessage } = useLoadingStore();
+  const { isLoading, loadingMessage, loadingSubMessage, loadingType } = useLoadingStore();
 
   // Prevent scrolling when loading overlay is active
   useEffect(() => {
@@ -19,6 +20,11 @@ const GlobalLoadingOverlay = () => {
   }, [isLoading]);
 
   if (!isLoading) return null;
+
+  // Render specialized scraping overlay
+  if (loadingType === 'scraping') {
+    return <ScrapingLoadingOverlay />;
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">

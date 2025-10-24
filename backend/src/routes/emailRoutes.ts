@@ -90,6 +90,7 @@ router.get('/', async (req: Request, res: Response) => {
       category,
       isRead,
       applicationId,
+      search,
       page = 1,
       limit = 50,
       sortBy = 'receivedAt',
@@ -108,6 +109,17 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (applicationId) {
       query.applicationId = applicationId;
+    }
+
+    // Add search functionality
+    if (search && search.toString().trim()) {
+      const searchRegex = new RegExp(search.toString().trim(), 'i');
+      query.$or = [
+        { subject: searchRegex },
+        { body: searchRegex },
+        { from: searchRegex },
+        { to: searchRegex }
+      ];
     }
 
     const sortOrder = order === 'asc' ? 1 : -1;

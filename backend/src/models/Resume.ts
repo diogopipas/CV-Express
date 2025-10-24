@@ -38,7 +38,7 @@ export interface IResume extends Document {
   filePath: string;
   fileSize: number;
   uploadDate: Date;
-  status: 'processing' | 'completed' | 'failed';
+  status: 'processing';
   extractedSkills: string[];
   suggestedRoles: string[];
   searchedTitles: string[];
@@ -97,7 +97,7 @@ const ResumeSchema: Schema = new Schema({
   uploadDate: { type: Date, default: Date.now },
   status: { 
     type: String, 
-    enum: ['processing', 'completed', 'failed'],
+    enum: ['processing'],
     default: 'processing'
   },
   extractedSkills: [{ type: String }],

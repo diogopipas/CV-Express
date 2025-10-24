@@ -16,16 +16,16 @@ cd ../frontend
 npm install
 ```
 
-### 2. Optional: Add OpenAI API Key
+### 2. Optional: Add Gemini API Key
 
 For advanced CV parsing (recommended but not required):
 
 Create or update `/backend/.env`:
 ```env
-OPENAI_API_KEY=sk-your-openai-api-key-here
+GEMINI_API_KEY=your-gemini-api-key-here
 ```
 
-> **Note:** Without OpenAI, the system will use a fallback regex-based parser. It still works, just not as smart.
+> **Note:** Without Gemini, the system will use a fallback regex-based parser. It still works, just not as smart.
 
 ### 3. Start the Application
 
@@ -63,8 +63,8 @@ npm run dev
 
 **Expected Result:** 
 - Resume uploads successfully
-- If OpenAI is configured: See detailed parsed data (work experience, education, skills categorized)
-- If no OpenAI: See basic skills extraction
+- If Gemini is configured: See detailed parsed data (work experience, education, skills categorized)
+- If no Gemini: See basic skills extraction
 
 ### Test 3: Add Jobs to Queue (3 minutes)
 
@@ -185,7 +185,7 @@ curl -X POST \
 
 ## 🐛 Troubleshooting
 
-### Issue: "OpenAI parsing failed"
+### Issue: "Gemini parsing failed"
 **Solution:** This is normal if you don't have an API key. The system falls back to regex parsing automatically.
 
 ### Issue: Match scores are all 50%
@@ -225,7 +225,7 @@ curl -H "Authorization: Bearer YOUR_TOKEN" \
 You'll know everything is working when:
 
 1. ✅ Onboarding completes and saves preferences
-2. ✅ Resume upload extracts skills (and optionally detailed data with OpenAI)
+2. ✅ Resume upload extracts skills (and optionally detailed data with Gemini)
 3. ✅ Jobs added to queue show match scores
 4. ✅ Queue shows match reasons breakdown
 5. ✅ Approved jobs can be processed in batch
@@ -262,7 +262,7 @@ You'll know everything is working when:
 - **Start with small batch sizes** (5-10 jobs) when testing queue processing
 - **Fill out onboarding completely** for best match scores
 - **Upload a detailed resume** for better parsing results
-- **Use OpenAI for production** - the parsing is significantly better
+- **Use Gemini for production** - the parsing is significantly better
 - **Check application timelines** to debug the queue → application flow
 
 ## 🆘 Need Help?

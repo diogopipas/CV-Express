@@ -29,6 +29,8 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@google/genai": "^1.27.0",
+    "@google/generative-ai": "^0.24.1",
     "mongodb": "^6.20.0"
   },
   "optionalDependencies": {

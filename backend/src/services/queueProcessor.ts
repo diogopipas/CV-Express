@@ -49,47 +49,7 @@ export async function markAsProcessing(queueItemId: string): Promise<boolean> {
   }
 }
 
-/**
- * Mark queue item as completed
- */
-export async function markAsCompleted(queueItemId: string, applicationId: string): Promise<boolean> {
-  try {
-    await ApplicationQueue.findByIdAndUpdate(queueItemId, {
-      status: 'completed',
-      processedAt: new Date()
-    });
-    return true;
-  } catch (error) {
-    console.error('Error marking queue item as completed:', error);
-    return false;
-  }
-}
 
-/**
- * Mark queue item as failed with error message
- */
-export async function markAsFailed(queueItemId: string, errorMessage: string): Promise<boolean> {
-  try {
-    const queueItem = await ApplicationQueue.findById(queueItemId);
-    if (!queueItem) return false;
-
-    queueItem.status = 'failed';
-    queueItem.errorMessage = errorMessage;
-    queueItem.retryCount += 1;
-    queueItem.processedAt = new Date();
-
-    // If retry count is less than 3, move back to approved for retry
-    if (queueItem.retryCount < 3) {
-      queueItem.status = 'approved';
-    }
-
-    await queueItem.save();
-    return true;
-  } catch (error) {
-    console.error('Error marking queue item as failed:', error);
-    return false;
-  }
-}
 
 /**
  * Create application record from queue item
@@ -154,16 +114,13 @@ export async function processBatch(userId: string, batchSize: number = 5): Promi
         const applicationId = await createApplicationFromQueue(queueItem);
 
         if (applicationId) {
-          // Mark as completed (actual application happens in extension)
-          await markAsCompleted(String(queueItem._id), applicationId);
+          // Application created successfully - keep as processing
           result.processed++;
         } else {
-          await markAsFailed(String(queueItem._id), 'Failed to create application record');
           result.failed++;
           result.errors.push(`Queue item ${queueItem._id}: Failed to create application`);
         }
       } catch (error: any) {
-        await markAsFailed(String(queueItem._id), error.message);
         result.failed++;
         result.errors.push(`Queue item ${queueItem._id}: ${error.message}`);
       }
@@ -198,9 +155,7 @@ export async function getQueueStats(userId: string) {
       pending_review: 0,
       approved: 0,
       rejected: 0,
-      processing: 0,
-      completed: 0,
-      failed: 0
+      processing: 0
     };
 
     stats.forEach(stat => {

@@ -21,7 +21,7 @@ export interface IApplicationQueue extends Document {
   resumeId: mongoose.Types.ObjectId;
   matchScore: number;
   matchReasons: IMatchReason[];
-  status: 'pending_review' | 'approved' | 'rejected' | 'processing' | 'completed' | 'failed';
+  status: 'pending_review' | 'approved' | 'rejected' | 'processing';
   autoFillData: IAutoFillData;
   queuedAt: Date;
   reviewedAt?: Date;
@@ -67,7 +67,7 @@ const ApplicationQueueSchema: Schema = new Schema({
   matchReasons: [MatchReasonSchema],
   status: {
     type: String,
-    enum: ['pending_review', 'approved', 'rejected', 'processing', 'completed', 'failed'],
+    enum: ['pending_review', 'approved', 'rejected', 'processing'],
     default: 'pending_review',
     required: true,
     index: true

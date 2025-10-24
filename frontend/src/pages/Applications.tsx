@@ -20,8 +20,7 @@ import {
   PlayCircle,
   Trash2,
   Building2,
-  MapPin,
-  Star
+  MapPin
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -133,8 +132,7 @@ const Applications = () => {
   const [emails, setEmails] = useState<Email[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [emailStats, setEmailStats] = useState<any>(null);
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [isReadFilter, setIsReadFilter] = useState<boolean | undefined>(undefined);
+  const [emailSearchTerm, setEmailSearchTerm] = useState('');
 
   useEffect(() => {
     if (activeTab === 'applications') {
@@ -146,7 +144,7 @@ const Applications = () => {
       fetchEmails();
       fetchEmailStats();
     }
-  }, [filters, activeTab, statusFilter, categoryFilter, isReadFilter]);
+  }, [filters, activeTab, statusFilter, emailSearchTerm]);
 
   const fetchApplications = async () => {
     setLoading(true);
@@ -296,8 +294,7 @@ const Applications = () => {
     try {
       const token = localStorage.getItem('token');
       const params: any = {};
-      if (categoryFilter !== 'all') params.category = categoryFilter;
-      if (isReadFilter !== undefined) params.isRead = isReadFilter;
+      if (emailSearchTerm.trim()) params.search = emailSearchTerm.trim();
 
       const response = await axios.get(`${API_URL}/emails`, {
         params,
@@ -415,17 +412,6 @@ const Applications = () => {
             Applications
           </button>
           <button
-            onClick={() => setActiveTab('queue')}
-            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
-              activeTab === 'queue'
-                ? 'border-primary text-primary font-medium'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <ListChecks className="h-4 w-4" />
-            Queue
-          </button>
-          <button
             onClick={() => setActiveTab('inbox')}
             className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
               activeTab === 'inbox'
@@ -440,6 +426,17 @@ const Applications = () => {
                 {emailStats.unread}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab('queue')}
+            className={`flex items-center gap-2 px-4 py-2 border-b-2 transition-colors ${
+              activeTab === 'queue'
+                ? 'border-primary text-primary font-medium'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <ListChecks className="h-4 w-4" />
+            Queue
           </button>
         </div>
       </div>
@@ -656,7 +653,7 @@ const Applications = () => {
           {/* Queue Filters */}
           <Card className="p-4">
             <div className="flex gap-2">
-              {['pending_review', 'approved', 'rejected', 'completed', 'failed'].map((status) => (
+              {['pending_review', 'approved', 'rejected'].map((status) => (
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
@@ -811,48 +808,18 @@ const Applications = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Email List */}
             <div className="lg:col-span-1 space-y-4">
-              {/* Filters */}
+              {/* Search Bar */}
               <Card className="p-2">
-                <div className="flex gap-1 mb-2 flex-wrap">
-                  {['all', 'interview', 'offer', 'rejection', 'assessment', 'followup', 'general'].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`px-2 py-1 rounded text-xs capitalize ${
-                        categoryFilter === cat
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setIsReadFilter(undefined)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === undefined ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setIsReadFilter(false)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === false ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    Unread
-                  </button>
-                  <button
-                    onClick={() => setIsReadFilter(true)}
-                    className={`px-2 py-1 rounded text-xs ${
-                      isReadFilter === true ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                    }`}
-                  >
-                    Read
-                  </button>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search emails..."
+                      value={emailSearchTerm}
+                      onChange={(e) => setEmailSearchTerm(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
                 </div>
               </Card>
 
