@@ -69,7 +69,7 @@ async function autoAnalyzeAndQueue(userId: string, jobs: any[], resumeId?: strin
             matchReasons,
             autoFillData: {
               name: user.name,
-              email: user.applicationEmail || user.email,
+              email: user.connectedEmail || user.email,
               phone: user.applicationPreferences?.phone,
               linkedin: user.applicationPreferences?.linkedinUrl,
               coverLetter: user.applicationPreferences?.defaultCoverLetter

@@ -185,7 +185,7 @@ export async function prepareAutoFillData(queueItem: IApplicationQueue): Promise
     const autoFillData: any = {
       // Basic info
       name: user.name,
-      email: user.applicationEmail || user.email,
+      email: user.connectedEmail || user.email,
       phone: user.applicationPreferences?.phone || user.profile?.workExperience?.[0]?.location,
       linkedin: user.applicationPreferences?.linkedinUrl || user.linkedinProfile?.profileUrl,
       

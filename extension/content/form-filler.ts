@@ -92,7 +92,7 @@ export class FormFiller {
       firstName: this.getFirstName(),
       lastName: this.getLastName(),
       fullName: this.userData.name,
-      email: this.userData.applicationEmail || this.userData.email, // Use application email if available
+      email: this.userData.connectedEmail || this.userData.email, // Use connected email if available
       phone: this.userData.phone || this.userData.applicationPreferences?.phone,
       linkedin: this.userData.linkedinUrl || this.userData.applicationPreferences?.linkedinUrl,
       coverLetter: this.userData.applicationPreferences?.defaultCoverLetter,

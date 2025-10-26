@@ -1,6 +1,7 @@
 import browser from 'webextension-polyfill';
 import { FormDetector } from './form-detector';
 import { FormFiller } from './form-filler';
+import { FormLearner } from './form-learner';
 import { JobData, ExtensionMessage, ExtensionResponse } from '../utils/types';
 
 /**
@@ -12,6 +13,7 @@ console.log('CV-Express content script loaded');
 
 let floatingButton: HTMLElement | null = null;
 let isFormDetected = false;
+let formLearner: FormLearner | null = null;
 
 // Initialize
 init();
@@ -19,6 +21,9 @@ init();
 function init() {
   // Detect if we're on an application form
   detectApplicationForm();
+  
+  // Initialize form learner
+  formLearner = new FormLearner();
   
   // Listen for messages from background script and popup
   browser.runtime.onMessage.addListener(handleMessage);

@@ -4,7 +4,8 @@ export interface UserData {
   id: string;
   name: string;
   email: string;
-  applicationEmail?: string; // Dedicated email for applications
+  connectedEmail?: string; // Connected email from OAuth
+  emailProvider?: 'gmail' | 'outlook';
   phone?: string;
   linkedinUrl?: string;
   applicationPreferences?: {

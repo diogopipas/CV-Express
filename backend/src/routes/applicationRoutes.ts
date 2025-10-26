@@ -396,7 +396,7 @@ router.post('/queue', async (req: Request, res: Response) => {
     const resume = await Resume.findById(resumeId);
     const autoFillData: any = {
       name: user.name,
-      email: user.applicationEmail || user.email,
+      email: user.connectedEmail || user.email,
       phone: user.applicationPreferences?.phone,
       linkedin: user.applicationPreferences?.linkedinUrl,
       coverLetter: user.applicationPreferences?.defaultCoverLetter
