@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Building2, DollarSign, Bookmark, Trash2, CheckCircle2, Briefcase, ExternalLink } from 'lucide-react';
+import { MapPin, Building2, DollarSign, Bookmark, Trash2, CheckCircle2, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Job, applicationService } from '../services/api';
 import { cn } from '@/lib/utils';
-import { useResumeStore } from '../store/useResumeStore';
 
 interface JobCardProps {
   job: Job;
   onSave?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onApplicationCreate?: () => void;
 }
 
-const JobCard = ({ job, onSave, onDelete, onApplicationCreate }: JobCardProps) => {
+const JobCard = ({ job, onSave, onDelete }: JobCardProps) => {
   const [hasApplied, setHasApplied] = useState(false);
   const [isCheckingApplication, setIsCheckingApplication] = useState(false);
 

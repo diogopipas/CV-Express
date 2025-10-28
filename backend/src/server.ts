@@ -36,7 +36,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -73,12 +74,12 @@ connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api', jobRoutes);
+app.use('/api/email-oauth', emailOAuthRoutes);
+app.use('/api/emails', emailRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api', extensionRoutes);
-app.use('/api/emails', emailRoutes);
-app.use('/api/email-oauth', emailOAuthRoutes);
+app.use('/api', jobRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

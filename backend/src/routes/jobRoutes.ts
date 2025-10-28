@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import Job from '../models/Job';
 import { scrapeJobs } from '../services/scrapers/scraperManager';
 import axios from 'axios';
-import { protect } from '../middleware/auth';
+import { protect, AuthRequest } from '../middleware/auth';
 import User from '../models/User';
 import Resume from '../models/Resume';
 import ApplicationQueue from '../models/ApplicationQueue';
@@ -112,13 +112,17 @@ async function autoAnalyzeAndQueue(userId: string, jobs: any[], resumeId?: strin
 router.post('/scrape', protect, async (req: Request, res: Response) => {
   try {
     const { keyword, location, resumeId, useCache = true, autoQueue = true } = req.body;
-    const userId = (req as any).user?._id;
+    const userId = (req as AuthRequest).user?._id?.toString();
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
 
     if (!keyword) {
       return res.status(400).json({ error: 'Keyword is required' });
     }
 
-    const result = await scrapeJobs({ keyword, location, resumeId, useCache });
+    const result = await scrapeJobs({ keyword, location, resumeId, useCache, userId });
 
     // Auto-analyze and queue jobs if user is authenticated and autoQueue is enabled
     let queueInfo = null;
@@ -162,8 +166,13 @@ router.post('/scrape', protect, async (req: Request, res: Response) => {
 });
 
 // GET /api/jobs - Get all jobs with filtering, pagination, sorting
-router.get('/jobs', async (req: Request, res: Response) => {
+router.get('/jobs', protect, async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
     const { 
       page = 1, 
       limit = 20, 
@@ -177,7 +186,7 @@ router.get('/jobs', async (req: Request, res: Response) => {
       order = 'desc'
     } = req.query;
 
-    const query: any = {};
+    const query: any = { userId };
 
     if (source) {
       query.source = source;
@@ -230,9 +239,13 @@ router.get('/jobs', async (req: Request, res: Response) => {
 });
 
 // GET /api/jobs/saved - Get all saved jobs
-router.get('/jobs/saved', async (req: Request, res: Response) => {
+router.get('/jobs/saved', protect, async (req: Request, res: Response) => {
   try {
-    const jobs = await Job.find({ saved: true }).sort({ scrapedDate: -1 });
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const jobs = await Job.find({ userId, saved: true }).sort({ scrapedDate: -1 });
     res.json({ success: true, data: jobs });
   } catch (error) {
     console.error('Get saved jobs error:', error);
@@ -405,9 +418,20 @@ router.get('/jobs/detect-location', async (req: Request, res: Response) => {
 });
 
 // GET /api/jobs/resume/:resumeId - Get jobs for a specific resume
-router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
+router.get('/jobs/resume/:resumeId', protect, async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
     const { resumeId } = req.params;
+    
+    // Verify that the resume belongs to the user
+    const resume = await Resume.findOne({ _id: resumeId, userId });
+    if (!resume) {
+      return res.status(404).json({ error: 'Resume not found' });
+    }
+    
     const { 
       page = 1, 
       limit = 100,
@@ -415,7 +439,7 @@ router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
       order = 'desc'
     } = req.query;
 
-    const query = { resumeId };
+    const query = { resumeId, userId };
     const sortOrder = order === 'asc' ? 1 : -1;
     const sortOptions: any = { [sortBy as string]: sortOrder };
 
@@ -443,9 +467,13 @@ router.get('/jobs/resume/:resumeId', async (req: Request, res: Response) => {
 });
 
 // GET /api/jobs/:id - Get single job
-router.get('/jobs/:id', async (req: Request, res: Response) => {
+router.get('/jobs/:id', protect, async (req: Request, res: Response) => {
   try {
-    const job = await Job.findById(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const job = await Job.findOne({ _id: req.params.id, userId });
     
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
@@ -459,9 +487,13 @@ router.get('/jobs/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/jobs/:id/save - Toggle save status
-router.post('/jobs/:id/save', async (req: Request, res: Response) => {
+router.post('/jobs/:id/save', protect, async (req: Request, res: Response) => {
   try {
-    const job = await Job.findById(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const job = await Job.findOne({ _id: req.params.id, userId });
     
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
@@ -482,9 +514,13 @@ router.post('/jobs/:id/save', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/jobs/:id - Delete job
-router.delete('/jobs/:id', async (req: Request, res: Response) => {
+router.delete('/jobs/:id', protect, async (req: Request, res: Response) => {
   try {
-    const job = await Job.findByIdAndDelete(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+    const job = await Job.findOneAndDelete({ _id: req.params.id, userId });
     
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });

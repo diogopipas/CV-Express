@@ -33,6 +33,7 @@ export interface IParsedData {
 }
 
 export interface IResume extends Document {
+  userId: mongoose.Types.ObjectId;
   filename: string;
   originalName: string;
   filePath: string;
@@ -90,6 +91,12 @@ const ParsedDataSchema = new Schema({
 }, { _id: false });
 
 const ResumeSchema: Schema = new Schema({
+  userId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true,
+    index: true
+  },
   filename: { type: String, required: true },
   originalName: { type: String, required: true },
   filePath: { type: String, required: true },
@@ -121,6 +128,10 @@ const ResumeSchema: Schema = new Schema({
   isLatest: { type: Boolean, default: false },
   parsedData: ParsedDataSchema
 });
+
+// Index for faster user-specific queries
+ResumeSchema.index({ userId: 1, uploadDate: -1 });
+ResumeSchema.index({ userId: 1, isLatest: 1 });
 
 export default mongoose.model<IResume>('Resume', ResumeSchema);
 

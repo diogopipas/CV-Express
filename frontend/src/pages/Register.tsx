@@ -63,8 +63,42 @@ const Register = () => {
         response.token
       );
 
-      toast.success('Registration successful!');
-      navigate('/onboarding');
+      // Process onboarding data if it exists
+      const onboardingData = localStorage.getItem('onboardingData');
+      if (onboardingData) {
+        try {
+          const parsedData = JSON.parse(onboardingData);
+          
+          // Update user profile with onboarding data
+          const profileData = {
+            profile: parsedData.profile,
+            jobPreferences: {
+              ...parsedData.jobPreferences,
+              // Ensure salaryExpectations has proper structure
+              salaryExpectations: parsedData.jobPreferences.salaryExpectations || {
+                min: undefined,
+                max: undefined,
+                currency: 'USD'
+              }
+            },
+            onboardingCompleted: true
+          };
+          
+          await authService.updateProfile(profileData);
+
+          // Clear onboarding data from localStorage
+          localStorage.removeItem('onboardingData');
+          
+          toast.success('Registration and profile setup completed!');
+        } catch (profileError) {
+          console.error('Profile update error:', profileError);
+          toast.success('Registration successful! You can complete your profile later.');
+        }
+      } else {
+        toast.success('Registration successful!');
+      }
+
+      navigate('/jobs');
     } catch (error: any) {
       console.error('Registration error:', error);
       toast.error(error.response?.data?.message || 'Failed to register. Please try again.');

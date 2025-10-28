@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { ChevronRight, ChevronLeft, Check, Briefcase, MapPin, DollarSign, FileText } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Predefined job roles for the dropdown
 const PREDEFINED_ROLES = [
@@ -123,17 +123,30 @@ export default function Onboarding() {
 
   const [roleInput, setRoleInput] = useState('');
   const [locationInput, setLocationInput] = useState('');
-  const [filteredRoles, setFilteredRoles] = useState(PREDEFINED_ROLES);
+  const [filteredRoles] = useState(PREDEFINED_ROLES);
 
   const totalSteps = 5;
 
-  const handleAddRole = () => {
-    if (roleInput.trim() && !formData.desiredRoles.includes(roleInput.trim())) {
-      setFormData({
-        ...formData,
-        desiredRoles: [...formData.desiredRoles, roleInput.trim()]
+  const handleAddRole = (role?: string) => {
+    const roleToAdd = role ? role.trim() : roleInput.trim();
+    console.log('handleAddRole called with:', { role, roleInput, roleToAdd });
+    if (roleToAdd) {
+      setFormData((prevFormData) => {
+        console.log('Current desiredRoles:', prevFormData.desiredRoles);
+        if (!prevFormData.desiredRoles.includes(roleToAdd)) {
+          const newRoles = [...prevFormData.desiredRoles, roleToAdd];
+          console.log('Adding role, new roles:', newRoles);
+          return {
+            ...prevFormData,
+            desiredRoles: newRoles
+          };
+        }
+        console.log('Role already exists, not adding');
+        return prevFormData;
       });
       setRoleInput('');
+    } else {
+      console.log('No role to add');
     }
   };
 
@@ -173,11 +186,39 @@ export default function Onboarding() {
     }
   };
 
-  const handleEmailConnect = (provider: 'gmail' | 'outlook') => {
+  const handleEmailConnect = async (provider: 'gmail' | 'outlook') => {
     setEmailProvider(provider);
-    // Redirect to OAuth flow
-    window.location.href = `${API_URL}/api/email-oauth/connect?provider=${provider}`;
+    setLoading(true);
+    try {
+      // Make POST request to initiate OAuth (no auth required)
+      const response = await axios.post(
+        `${API_URL}/email-oauth/connect`,
+        { provider },
+        {
+          withCredentials: true
+        }
+      );
+      
+      // Redirect to the OAuth URL returned by the server
+      if (response.data?.redirectUrl) {
+        window.location.href = response.data.redirectUrl;
+      } else {
+        // Fallback to manual redirect
+        if (provider === 'gmail') {
+          window.location.href = `${API_URL}/email-oauth/google/auth`;
+        } else if (provider === 'outlook') {
+          window.location.href = `${API_URL}/email-oauth/microsoft/auth`;
+        }
+      }
+    } catch (error) {
+      console.error('Email connect error:', error);
+      toast.error('Failed to connect email. Please try again.');
+      setLoading(false);
+    }
   };
+
+  // Note: Onboarding can be accessed without authentication
+  // OAuth data will be stored in session and associated with the user during registration
 
   // Check for OAuth callback
   useEffect(() => {
@@ -185,24 +226,26 @@ export default function Onboarding() {
     if (params.get('email_oauth') === 'success') {
       setEmailConnected(true);
       toast.success('Email connected successfully!');
+      // Automatically advance to the next step after successful email connection
+      setCurrentStep(1);
       // Remove the query parameter from URL
       window.history.replaceState({}, document.title, window.location.pathname);
     } else if (params.get('error') === 'email_oauth_failed') {
       toast.error('Failed to connect email. Please try again.');
+      setLoading(false);
+    } else if (params.get('error') === 'oauth_not_configured') {
+      toast.error('Email OAuth is not configured. Please contact the administrator.');
+      setLoading(false);
+      // Remove the query parameter from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        navigate('/login');
-        return;
-      }
-
-      // Prepare profile update payload
-      const profileUpdate = {
+      // Store onboarding data in localStorage to be used during registration
+      const onboardingData = {
         profile: {
           location: formData.location,
           yearsOfExperience: formData.yearsOfExperience,
@@ -222,18 +265,17 @@ export default function Onboarding() {
           willingToRelocate: formData.willingToRelocate,
           noticePeriod: formData.noticePeriod
         },
-        onboardingCompleted: true
+        emailConnected: emailConnected,
+        emailProvider: emailProvider
       };
 
-      await axios.patch(`${API_URL}/auth/profile`, profileUpdate, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      toast.success('Profile setup completed!');
-      navigate('/');
+      localStorage.setItem('onboardingData', JSON.stringify(onboardingData));
+      
+      toast.success('Onboarding completed! Please register to continue.');
+      navigate('/register');
     } catch (error: any) {
       console.error('Onboarding error:', error);
-      toast.error(error.response?.data?.message || 'Failed to save preferences');
+      toast.error('Failed to save preferences');
     } finally {
       setLoading(false);
     }
@@ -341,32 +383,35 @@ export default function Onboarding() {
                 <Label>Desired Roles</Label>
                 <div className="flex gap-2 mt-1">
                   <div className="relative flex-1">
-                    <Input
-                      list="roles-datalist"
-                      placeholder="Search and select a role"
-                      value={roleInput}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setRoleInput(value);
-                        // Filter roles based on input
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
                         if (value) {
-                          const filtered = PREDEFINED_ROLES.filter(role =>
-                            role.toLowerCase().includes(value.toLowerCase())
-                          );
-                          setFilteredRoles(filtered);
-                        } else {
-                          setFilteredRoles(PREDEFINED_ROLES);
+                          handleAddRole(value);
                         }
                       }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Search and select a role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredRoles.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {role}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Or type custom role"
+                      value={roleInput}
+                      onChange={(e) => setRoleInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRole())}
                     />
-                    <datalist id="roles-datalist">
-                      {filteredRoles.map((role) => (
-                        <option key={role} value={role} />
-                      ))}
-                    </datalist>
+                                         <Button onClick={() => handleAddRole()} type="button" disabled={!roleInput.trim()}>Add</Button>
                   </div>
-                  <Button onClick={handleAddRole} type="button">Add</Button>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {formData.desiredRoles.map((role) => (
@@ -522,38 +567,64 @@ export default function Onboarding() {
 
             <div className="space-y-4">
               <div>
-                <Label>Salary Expectations (Optional)</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  <Input
-                    type="number"
-                    placeholder="Min"
-                    value={formData.salaryMin || ''}
-                    onChange={(e) => setFormData({ ...formData, salaryMin: parseInt(e.target.value) || undefined })}
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Max"
-                    value={formData.salaryMax || ''}
-                    onChange={(e) => setFormData({ ...formData, salaryMax: parseInt(e.target.value) || undefined })}
-                  />
-                  <Select
-                    value={formData.salaryCurrency}
-                    onValueChange={(value) => setFormData({ ...formData, salaryCurrency: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
-                      <SelectItem value="CAD">CAD</SelectItem>
-                      <SelectItem value="AUD">AUD</SelectItem>
-                      <SelectItem value="JPY">JPY</SelectItem>
-                      <SelectItem value="CHF">CHF</SelectItem>
-                      <SelectItem value="INR">INR</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Label>Expected Salary (Optional)</Label>
+                <div className="space-y-4 mt-1">
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        ${(formData.salaryMin || 0).toLocaleString()}
+                      </div>
+                      <div className="text-sm text-muted-foreground">per year</div>
+                    </div>
+                    
+                    {/* Single Salary Slider */}
+                    <div className="relative">
+                      <input
+                        type="range"
+                        min="0"
+                        max="200000"
+                        step="5000"
+                        value={formData.salaryMin || 0}
+                        onChange={(e) => {
+                          const salary = parseInt(e.target.value);
+                          setFormData({ ...formData, salaryMin: salary });
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                        style={{
+                          background: `linear-gradient(to right, #8b5cf6 0%, #8b5cf6 ${((formData.salaryMin || 0) / 200000) * 100}%, #e5e7eb ${((formData.salaryMin || 0) / 200000) * 100}%, #e5e7eb 100%)`
+                        }}
+                      />
+                      
+                      <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                        <span>$0</span>
+                        <span>$200k+</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <Label className="text-xs text-muted-foreground">Currency</Label>
+                      <Select
+                        value={formData.salaryCurrency}
+                        onValueChange={(value) => setFormData({ ...formData, salaryCurrency: value })}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="GBP">GBP</SelectItem>
+                          <SelectItem value="CAD">CAD</SelectItem>
+                          <SelectItem value="AUD">AUD</SelectItem>
+                          <SelectItem value="JPY">JPY</SelectItem>
+                          <SelectItem value="CHF">CHF</SelectItem>
+                          <SelectItem value="INR">INR</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -682,16 +753,6 @@ export default function Onboarding() {
               {loading ? 'Saving...' : 'Complete Setup'}
             </Button>
           )}
-        </div>
-
-        {/* Skip Option */}
-        <div className="text-center mt-4">
-          <button
-            onClick={() => navigate('/')}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Skip for now
-          </button>
         </div>
       </Card>
     </div>

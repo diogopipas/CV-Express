@@ -9,7 +9,8 @@ const ALGORITHM = 'aes-256-cbc';
 
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipher(ALGORITHM, ENCRYPTION_KEY);
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8').slice(0, 32);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   return iv.toString('hex') + ':' + encrypted;
@@ -19,7 +20,8 @@ function decrypt(encryptedText: string): string {
   const textParts = encryptedText.split(':');
   const iv = Buffer.from(textParts.shift()!, 'hex');
   const encryptedData = textParts.join(':');
-  const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+  const key = Buffer.from(ENCRYPTION_KEY, 'utf8').slice(0, 32);
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
   decrypted += decipher.final('utf8');
   return decrypted;
@@ -66,16 +68,33 @@ export class EmailSyncService {
   static async syncUserEmails(userId: string): Promise<void> {
     try {
       const user = await User.findById(userId);
-      if (!user || !user.emailConnected || !user.emailAccessToken) {
-        throw new Error('User not found or email not connected');
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      if (!user.emailConnected) {
+        throw new Error('Email account not connected. Please connect your email in the onboarding flow.');
+      }
+      
+      if (!user.emailAccessToken) {
+        throw new Error('Email access token not found. Please reconnect your email account.');
       }
 
-      const accessToken = decrypt(user.emailAccessToken);
+      // Check if token is expired and refresh if needed
+      let accessToken: string;
+      try {
+        accessToken = await this.refreshTokenIfNeeded(user);
+      } catch (tokenError) {
+        console.error(`Token refresh failed for user ${userId}:`, tokenError);
+        throw new Error('Email access token expired and refresh failed. Please reconnect your email account.');
+      }
       
       if (user.emailProvider === 'gmail') {
         await this.syncGmailEmails(user, accessToken);
       } else if (user.emailProvider === 'outlook') {
         await this.syncOutlookEmails(user, accessToken);
+      } else {
+        throw new Error(`Unsupported email provider: ${user.emailProvider}`);
       }
 
       // Update last sync time
@@ -121,8 +140,20 @@ export class EmailSyncService {
           console.error(`Error processing Gmail message ${messageId}:`, error);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Gmail sync error:', error);
+      
+      // Provide more specific error messages
+      if (error.response?.status === 401) {
+        throw new Error('Gmail access token is invalid or expired. Please reconnect your Gmail account.');
+      } else if (error.response?.status === 403) {
+        throw new Error('Gmail API access denied. Please check your Gmail API permissions.');
+      } else if (error.response?.status === 429) {
+        throw new Error('Gmail API rate limit exceeded. Please try again later.');
+      } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to connect to Gmail API. Please check your internet connection.');
+      }
+      
       throw error;
     }
   }
@@ -222,8 +253,20 @@ export class EmailSyncService {
           console.error(`Error processing Outlook message ${message.id}:`, error);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Outlook sync error:', error);
+      
+      // Provide more specific error messages
+      if (error.response?.status === 401) {
+        throw new Error('Outlook access token is invalid or expired. Please reconnect your Outlook account.');
+      } else if (error.response?.status === 403) {
+        throw new Error('Outlook API access denied. Please check your Outlook API permissions.');
+      } else if (error.response?.status === 429) {
+        throw new Error('Outlook API rate limit exceeded. Please try again later.');
+      } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to connect to Outlook API. Please check your internet connection.');
+      }
+      
       throw error;
     }
   }
@@ -328,9 +371,27 @@ export class EmailSyncService {
   }
 
   private static async refreshGmailToken(user: any): Promise<string> {
-    // Gmail tokens are long-lived, but we'll implement refresh logic here
-    // For now, return the existing token
-    return decrypt(user.emailAccessToken);
+    try {
+      // Gmail tokens are long-lived but can still expire
+      // For now, we'll try to use the existing token and let the API call fail if it's expired
+      const accessToken = decrypt(user.emailAccessToken);
+      
+      // Test the token by making a simple API call
+      try {
+        await axios.get('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        return accessToken;
+      } catch (testError: any) {
+        if (testError.response?.status === 401) {
+          throw new Error('Gmail token has expired. Please reconnect your Gmail account.');
+        }
+        throw testError;
+      }
+    } catch (error) {
+      console.error('Gmail token refresh error:', error);
+      throw error;
+    }
   }
 
   private static async refreshOutlookToken(user: any): Promise<string> {

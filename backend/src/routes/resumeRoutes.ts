@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import Resume from '../models/Resume';
 import { parseResumeWithAI, extractAllSkills, suggestRoles } from '../services/resumeParser';
-import { protect } from '../middleware/auth';
+import { protect, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -106,8 +106,13 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+
     // Check if user already has 5 resumes
-    const resumeCount = await Resume.countDocuments();
+    const resumeCount = await Resume.countDocuments({ userId });
     if (resumeCount >= 5) {
       // Clean up the uploaded file since we won't save it
       if (fs.existsSync(req.file.path)) {
@@ -123,11 +128,12 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
       });
     }
 
-    // Set all other resumes as not latest
-    await Resume.updateMany({}, { isLatest: false });
+    // Set all other resumes for this user as not latest
+    await Resume.updateMany({ userId }, { isLatest: false });
 
     // Create resume record
     const resume = new Resume({
+      userId,
       filename: req.file.filename,
       originalName: req.file.originalname,
       filePath: req.file.path,
@@ -216,7 +222,11 @@ router.post('/upload', upload.single('resume'), async (req: Request, res: Respon
 // Get all resumes
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const resumes = await Resume.find().sort({ uploadDate: -1 });
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const resumes = await Resume.find({ userId }).sort({ uploadDate: -1 });
     res.json({ success: true, data: resumes });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -226,7 +236,11 @@ router.get('/', async (req: Request, res: Response) => {
 // Get latest resume
 router.get('/latest', async (req: Request, res: Response) => {
   try {
-    const resume = await Resume.findOne({ isLatest: true });
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const resume = await Resume.findOne({ userId, isLatest: true });
     if (!resume) {
       return res.status(404).json({ success: false, message: 'No resume found' });
     }
@@ -239,7 +253,11 @@ router.get('/latest', async (req: Request, res: Response) => {
 // Get resume by ID
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const resume = await Resume.findById(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
     if (!resume) {
       return res.status(404).json({ success: false, message: 'Resume not found' });
     }
@@ -252,7 +270,11 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Delete resume
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const resume = await Resume.findById(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
     if (!resume) {
       return res.status(404).json({ success: false, message: 'Resume not found' });
     }
@@ -272,10 +294,14 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // Update resume stats
 router.patch('/:id/stats', async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
     const { jobSearchesUsed, totalJobs, newJobs, appliedJobs, successfulApplications, failedApplications, inQueue } = req.body;
     
-    const resume = await Resume.findByIdAndUpdate(
-      req.params.id,
+    const resume = await Resume.findOneAndUpdate(
+      { _id: req.params.id, userId },
       {
         $set: {
           jobSearchesUsed,
@@ -303,8 +329,12 @@ router.patch('/:id/stats', async (req: Request, res: Response) => {
 // Add searched title to resume
 router.post('/:id/search-title', async (req: Request, res: Response) => {
   try {
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
     const { title } = req.body;
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
 
     if (!resume) {
       return res.status(404).json({ success: false, message: 'Resume not found' });
@@ -328,7 +358,12 @@ router.get('/:id/download', async (req: Request, res: Response) => {
     // Note: Authentication should be handled by the frontend when making the request
     // The token is passed via query param for direct browser access
     
-    const resume = await Resume.findById(req.params.id);
+    const userId = (req as AuthRequest).user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User not authenticated' });
+    }
+    
+    const resume = await Resume.findOne({ _id: req.params.id, userId });
     
     if (!resume) {
       return res.status(404).json({ success: false, message: 'Resume not found' });

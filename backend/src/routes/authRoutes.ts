@@ -38,6 +38,28 @@ router.post('/register', async (req: Request, res: Response) => {
     });
 
     if (user) {
+      // Check if there's OAuth data in session from email onboarding
+      if ((req as any).session?.oauthData) {
+        const oauthData = (req as any).session.oauthData;
+        
+        // Save OAuth data to user
+        user.connectedEmail = oauthData.connectedEmail;
+        user.emailProvider = oauthData.emailProvider;
+        user.emailAccessToken = oauthData.accessToken; // Already encrypted
+        user.emailRefreshToken = oauthData.refreshToken; // Already encrypted
+        user.emailTokenExpiry = oauthData.tokenExpiry;
+        user.emailConnected = true;
+        
+        // Generate unique application email
+        const userIdSuffix = (user._id as any).toString().slice(-8);
+        user.applicationEmail = `applications-${userIdSuffix}@cvexpress.com`;
+        
+        await user.save();
+        
+        // Clear OAuth data from session
+        delete (req as any).session.oauthData;
+      }
+
       res.status(201).json({
         _id: user._id,
         name: user.name,

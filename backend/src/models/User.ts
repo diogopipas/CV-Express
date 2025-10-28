@@ -83,6 +83,7 @@ export interface IUser extends Document {
   linkedinProfile?: ILinkedInProfile;
   linkedinConnected?: boolean;
   connectedEmail?: string;
+  applicationEmail?: string;
   emailProvider?: 'gmail' | 'outlook';
   emailAccessToken?: string;
   emailRefreshToken?: string;
@@ -176,6 +177,7 @@ const userSchema = new Schema<IUser>(
     },
     linkedinConnected: { type: Boolean, default: false },
     connectedEmail: { type: String },
+    applicationEmail: { type: String },
     emailProvider: { 
       type: String, 
       enum: ['gmail', 'outlook'],

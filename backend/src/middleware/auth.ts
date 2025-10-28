@@ -13,7 +13,12 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       // Get token from header
-      token = req.headers.authorization.split(' ')[1];
+      token = req.headers.authorization.split(' ')[1]?.trim();
+
+      // Validate token exists and is not empty
+      if (!token) {
+        return res.status(401).json({ message: 'Not authorized, invalid token format' });
+      }
 
       // Verify token
       const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
@@ -26,13 +31,19 @@ export const protect = async (req: Request, res: Response, next: NextFunction) =
       }
 
       next();
-    } catch (error) {
-      console.error('Auth middleware error:', error);
+    } catch (error: any) {
+      // Reduce noise for common JWT errors that indicate token issues requiring re-authentication
+      // These are expected when tokens are expired, malformed, or signed with a different secret
+      const shouldLog = error.name !== 'JsonWebTokenError' || 
+        (error.message !== 'jwt malformed' && error.message !== 'invalid signature');
+      
+      if (shouldLog) {
+        console.error('Auth middleware error:', error);
+      }
+      
       return res.status(401).json({ message: 'Not authorized, token failed' });
     }
-  }
-
-  if (!token) {
+  } else {
     return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
