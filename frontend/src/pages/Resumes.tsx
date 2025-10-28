@@ -25,7 +25,8 @@ import {
   ThumbsDown,
   Gift,
   ClipboardList,
-  MailOpen
+  MailOpen,
+  RefreshCw
 } from 'lucide-react';
 import { useResumeStore } from '../store/useResumeStore';
 import { useJobStore } from '../store/useJobStore';
@@ -33,6 +34,7 @@ import { useLoadingStore } from '../store/useLoadingStore';
 import { resumeService, jobService } from '../services/api';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import { 
   Dialog, 
   DialogContent, 
@@ -49,7 +51,7 @@ import SubscriptionPlansDialog from '../components/SubscriptionPlansDialog';
 import { Card } from '../components/ui/card';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 interface QueueItem {
   _id: string;
@@ -137,8 +139,7 @@ const Resumes = () => {
   // Inbox state
   const [emails, setEmails] = useState<Email[]>([]);
   const [emailStats, setEmailStats] = useState<any>(null);
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [isReadFilter, setIsReadFilter] = useState<boolean | undefined>(undefined);
+  const [emailSearchTerm, setEmailSearchTerm] = useState('');
 
   // Load jobs for a specific resume
   const loadJobsForResume = async (resumeId: string) => {
@@ -190,7 +191,7 @@ const Resumes = () => {
       fetchEmails();
       fetchEmailStats();
     }
-  }, [activeTab, statusFilter, categoryFilter, isReadFilter]);
+  }, [activeTab, statusFilter, emailSearchTerm]);
 
   useEffect(() => {
     // Check if navigated with a newly uploaded resume
@@ -617,7 +618,8 @@ ACHIEVEMENTS
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       const response = await axios.get(`${API_URL}/applications/queue`, {
         params: { status: statusFilter },
         headers: { Authorization: `Bearer ${token}` }
@@ -634,7 +636,8 @@ ACHIEVEMENTS
 
   const handleReview = async (id: string, action: 'approve' | 'reject') => {
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       await axios.patch(
         `${API_URL}/applications/queue/${id}/review`,
         { action },
@@ -654,7 +657,8 @@ ACHIEVEMENTS
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       await axios.post(
         `${API_URL}/applications/queue/bulk-approve`,
         { queueIds: Array.from(selectedIds) },
@@ -671,7 +675,8 @@ ACHIEVEMENTS
   const handleProcessQueue = async () => {
     setProcessing(true);
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       const response = await axios.post(
         `${API_URL}/applications/queue/process`,
         { batchSize: 10 },
@@ -688,7 +693,8 @@ ACHIEVEMENTS
 
   const handleDeleteQueue = async (id: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       await axios.delete(`${API_URL}/applications/queue/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -716,13 +722,15 @@ ACHIEVEMENTS
   };
 
   // Inbox functions
+  const [syncing, setSyncing] = useState(false);
+
   const fetchEmails = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       const params: any = {};
-      if (categoryFilter !== 'all') params.category = categoryFilter;
-      if (isReadFilter !== undefined) params.isRead = isReadFilter;
+      if (emailSearchTerm) params.search = emailSearchTerm;
 
       const response = await axios.get(`${API_URL}/emails`, {
         params,
@@ -739,7 +747,8 @@ ACHIEVEMENTS
 
   const fetchEmailStats = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       const response = await axios.get(`${API_URL}/emails/stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -749,10 +758,32 @@ ACHIEVEMENTS
     }
   };
 
+  const handleSyncEmails = async () => {
+    try {
+      setSyncing(true);
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
+      const response = await axios.post(`${API_URL}/email-oauth/sync`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      toast.success(response.data.message || 'Emails synced successfully');
+      await fetchEmails();
+      await fetchEmailStats();
+    } catch (error: any) {
+      console.error('Error syncing emails:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to sync emails';
+      toast.error(errorMessage);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
 
   const handleToggleRead = async (email: Email) => {
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       await axios.patch(
         `${API_URL}/emails/${email._id}/read`,
         { isRead: !email.isRead },
@@ -768,7 +799,8 @@ ACHIEVEMENTS
 
   const handleDeleteEmail = async (emailId: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const authStorage = localStorage.getItem('auth-storage');
+      const token = authStorage ? JSON.parse(authStorage).state?.token : null;
       await axios.delete(`${API_URL}/emails/${emailId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -1071,48 +1103,26 @@ ACHIEVEMENTS
             </div>
           )}
 
-          {/* Filters */}
+          {/* Search Bar with Sync Button */}
           <Card className="p-4 mb-6">
-            <div className="flex gap-1 mb-2 flex-wrap">
-              {['all', 'interview', 'offer', 'rejection', 'assessment', 'followup', 'general'].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-2 py-1 rounded text-xs capitalize ${
-                    categoryFilter === cat
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setIsReadFilter(undefined)}
-                className={`px-2 py-1 rounded text-xs ${
-                  isReadFilter === undefined ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Search emails by subject, sender, or content..."
+                  value={emailSearchTerm}
+                  onChange={(e) => setEmailSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button 
+                onClick={handleSyncEmails} 
+                disabled={syncing}
+                variant="outline"
               >
-                All
-              </button>
-              <button
-                onClick={() => setIsReadFilter(false)}
-                className={`px-2 py-1 rounded text-xs ${
-                  isReadFilter === false ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
-              >
-                Unread
-              </button>
-              <button
-                onClick={() => setIsReadFilter(true)}
-                className={`px-2 py-1 rounded text-xs ${
-                  isReadFilter === true ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
-              >
-                Read
-              </button>
+                <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Syncing...' : 'Sync Emails'}
+              </Button>
             </div>
           </Card>
 

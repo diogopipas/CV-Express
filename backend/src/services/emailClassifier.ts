@@ -1,6 +1,7 @@
 import Application from '../models/Application';
 import Job from '../models/Job';
 import { IEmail } from '../models/Email';
+import axios from 'axios';
 
 export type EmailCategory = 'general' | 'interview' | 'rejection' | 'offer' | 'followup' | 'assessment';
 
@@ -18,7 +19,75 @@ interface ClassificationResult {
 }
 
 /**
- * Classify email based on content
+ * Classify email using AI/ML for better accuracy
+ */
+export async function classifyEmailWithAI(subject: string, body: string, userApplications?: any[]): Promise<ClassificationResult> {
+  try {
+    const openaiApiKey = process.env.OPENAI_API_KEY;
+    if (!openaiApiKey) {
+      // Fallback to rule-based classification
+      return classifyEmail(subject, body);
+    }
+
+    // Prepare context about user's applications
+    let applicationContext = '';
+    if (userApplications && userApplications.length > 0) {
+      const companies = userApplications.map(app => app.jobId?.company).filter(Boolean);
+      const jobTitles = userApplications.map(app => app.jobId?.title).filter(Boolean);
+      applicationContext = `User has applied to: ${companies.join(', ')} for roles: ${jobTitles.join(', ')}`;
+    }
+
+    const prompt = `Classify this email as one of: interview, rejection, offer, assessment, followup, or general.
+
+Email Subject: "${subject}"
+Email Body: "${body.substring(0, 1000)}"
+${applicationContext ? `Context: ${applicationContext}` : ''}
+
+Return JSON with:
+- category: one of the above categories
+- confidence: 0-1 score
+- metadata: extract relevant details like dates, locations, salary, etc.
+
+Focus on job application related emails. If it's not related to job applications, classify as "general".`;
+
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an AI assistant that classifies emails related to job applications. Return only valid JSON.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.1
+    }, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const aiResponse = response.data.choices[0].message.content;
+    const parsed = JSON.parse(aiResponse);
+    
+    return {
+      category: parsed.category || 'general',
+      confidence: Math.min(parsed.confidence || 0.5, 1),
+      metadata: parsed.metadata || {}
+    };
+  } catch (error) {
+    console.error('AI classification error:', error);
+    // Fallback to rule-based classification
+    return classifyEmail(subject, body);
+  }
+}
+
+/**
+ * Classify email based on content (rule-based fallback)
  */
 export function classifyEmail(subject: string, body: string): ClassificationResult {
   const text = `${subject} ${body}`.toLowerCase();

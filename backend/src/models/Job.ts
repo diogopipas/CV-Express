@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IJob extends Document {
+  userId?: mongoose.Types.ObjectId;
   title: string;
   company: string;
   location: string;
@@ -22,6 +23,11 @@ export interface IJob extends Document {
 }
 
 const JobSchema: Schema = new Schema({
+  userId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'User',
+    index: true
+  },
   title: { type: String, required: true },
   company: { type: String, required: true },
   location: { type: String, required: true },
@@ -29,7 +35,7 @@ const JobSchema: Schema = new Schema({
   region: { type: String }, // State/region/province
   description: { type: String, required: true },
   salary: { type: String },
-  jobUrl: { type: String, required: true, unique: true },
+  jobUrl: { type: String, required: true },
   source: { type: String, enum: ['Adzuna', 'Arbeitnow', 'JSearch', 'Mock'], required: true },
   postedDate: { type: Date },
   scrapedDate: { type: Date, default: Date.now },
@@ -51,6 +57,9 @@ const JobSchema: Schema = new Schema({
 JobSchema.index({ title: 'text', company: 'text', description: 'text' });
 JobSchema.index({ source: 1, scrapedDate: -1 });
 JobSchema.index({ resumeId: 1, scrapedDate: -1 });
+JobSchema.index({ userId: 1, scrapedDate: -1 });
+JobSchema.index({ userId: 1, saved: 1 });
+JobSchema.index({ userId: 1, resumeId: 1 });
 JobSchema.index({ country: 1, scrapedDate: -1 });
 JobSchema.index({ region: 1, scrapedDate: -1 });
 JobSchema.index({ country: 1, region: 1, scrapedDate: -1 });

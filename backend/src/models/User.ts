@@ -34,6 +34,11 @@ export interface IUserProfile {
   certifications?: string[];
   languages?: string[];
   skills?: string[];
+  learnedFields?: Record<string, {
+    value: any;
+    source: string;
+    learnedAt: Date;
+  }>;
 }
 
 export interface IJobPreferences {
@@ -77,7 +82,14 @@ export interface IUser extends Document {
   jobPreferences?: IJobPreferences;
   linkedinProfile?: ILinkedInProfile;
   linkedinConnected?: boolean;
+  connectedEmail?: string;
   applicationEmail?: string;
+  emailProvider?: 'gmail' | 'outlook';
+  emailAccessToken?: string;
+  emailRefreshToken?: string;
+  emailTokenExpiry?: Date;
+  emailConnected?: boolean;
+  lastEmailSync?: Date;
   notificationPreferences?: INotificationPreferences;
   onboardingCompleted?: boolean;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -164,7 +176,18 @@ const userSchema = new Schema<IUser>(
       lastSync: { type: Date }
     },
     linkedinConnected: { type: Boolean, default: false },
-    applicationEmail: { type: String, unique: true, sparse: true },
+    connectedEmail: { type: String },
+    applicationEmail: { type: String },
+    emailProvider: { 
+      type: String, 
+      enum: ['gmail', 'outlook'],
+      sparse: true
+    },
+    emailAccessToken: { type: String },
+    emailRefreshToken: { type: String },
+    emailTokenExpiry: { type: Date },
+    emailConnected: { type: Boolean, default: false },
+    lastEmailSync: { type: Date },
     notificationPreferences: {
       emailOnInterview: { type: Boolean, default: true },
       emailOnRejection: { type: Boolean, default: false },
@@ -178,31 +201,15 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-// Generate unique application email
-const generateApplicationEmail = (userId: string): string => {
-  const cleanId = userId.slice(-8); // Use last 8 chars of userId
-  return `applications-${cleanId}@cvexpress.com`;
-};
-
 // Hash password before saving
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    // Generate application email if not set
-    if (!this.applicationEmail && this._id) {
-      this.applicationEmail = generateApplicationEmail(this._id.toString());
-    }
     return next();
   }
 
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    
-    // Generate application email on user creation
-    if (this.isNew && this._id) {
-      this.applicationEmail = generateApplicationEmail(this._id.toString());
-    }
-    
     next();
   } catch (error: any) {
     next(error);

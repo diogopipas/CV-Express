@@ -301,8 +301,8 @@ export const authService = {
     return response.data;
   },
 
-  updateProfile: async (data: { name: string; email: string }) => {
-    const response = await api.put('/auth/profile', data);
+  updateProfile: async (data: any) => {
+    const response = await api.patch('/auth/profile', data);
     return response.data;
   },
 

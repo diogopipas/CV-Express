@@ -11,6 +11,7 @@ interface ScrapeParams {
   location?: string; // Optional now - if not provided, fetches globally
   resumeId?: string;
   useCache?: boolean; // Enable cache for demo resumes
+  userId?: string; // User ID to associate jobs with
 }
 
 interface JobListing {
@@ -38,20 +39,25 @@ const CACHE_TTL_HOURS = parseInt(process.env.JOB_CACHE_TTL_HOURS || '24', 10); /
  * Check if cached jobs exist for the given keyword and location
  * Returns cached jobs if they exist and are recent (within TTL)
  */
-const getCachedJobs = async (keyword: string, location: string) => {
+const getCachedJobs = async (keyword: string, location: string, userId?: string) => {
   const cacheExpiryTime = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
   
   // Find recent jobs for this keyword/location combination
-  // We look for jobs without a resumeId (template jobs) or with any resumeId
-  // that were scraped recently
-  const cachedJobs = await Job.find({
+  // Filter by userId if provided
+  const query: any = {
     $or: [
       { title: new RegExp(keyword, 'i') },
       { description: new RegExp(keyword, 'i') }
     ],
     location: new RegExp(location, 'i'),
     scrapedDate: { $gte: cacheExpiryTime }
-  })
+  };
+  
+  if (userId) {
+    query.userId = userId;
+  }
+  
+  const cachedJobs = await Job.find(query)
     .sort({ scrapedDate: -1 })
     .limit(50); // Limit to 50 jobs for performance
 
@@ -66,16 +72,17 @@ const getCachedJobs = async (keyword: string, location: string) => {
 /**
  * Clone cached jobs and associate them with a new resumeId
  */
-const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
+const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string, userId?: string) => {
   const clonedJobs = [];
   
   for (const job of cachedJobs) {
     try {
-      // Check if this exact job URL is already associated with this resumeId
-      if (resumeId) {
+      // Check if this exact job URL is already associated with this resumeId and userId
+      if (resumeId && userId) {
         const existingJob = await Job.findOne({ 
           jobUrl: job.jobUrl,
-          resumeId 
+          resumeId,
+          userId
         });
         
         if (existingJob) {
@@ -84,9 +91,9 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
         }
       }
       
-      // Create a new job instance with the same data but new resumeId
+      // Create a new job instance with the same data but new resumeId and userId
       const locationDetails = extractLocationDetails(job.location);
-      const jobData = {
+      const jobData: any = {
         title: job.title,
         company: job.company,
         location: job.location,
@@ -107,18 +114,24 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
         resumeId: resumeId
       };
       
-      // Try to find existing job with same URL
-      const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
+      if (userId) {
+        jobData.userId = userId;
+      }
+      
+      // Try to find existing job with same URL for this user
+      const query: any = { jobUrl: job.jobUrl };
+      if (userId) {
+        query.userId = userId;
+      }
+      const existingJob = await Job.findOne(query);
       
       if (existingJob) {
         // If job exists but without this resumeId, update it
         if (resumeId && (!existingJob.resumeId || existingJob.resumeId.toString() !== resumeId)) {
-          // We can't update the resumeId if it's already set to a different one
-          // So we just return the existing job
-          clonedJobs.push(existingJob);
-        } else {
-          clonedJobs.push(existingJob);
+          existingJob.resumeId = resumeId as any;
+          await existingJob.save();
         }
+        clonedJobs.push(existingJob);
       } else {
         // Create new job
         const newJob = await Job.create(jobData);
@@ -132,7 +145,7 @@ const cloneCachedJobs = async (cachedJobs: any[], resumeId?: string) => {
   return clonedJobs;
 };
 
-export const scrapeJobs = async ({ keyword, location = 'global', resumeId, useCache = true }: ScrapeParams) => {
+export const scrapeJobs = async ({ keyword, location = 'global', resumeId, useCache = true, userId }: ScrapeParams) => {
   const allJobs: JobListing[] = [];
   const errors: any[] = [];
 
@@ -144,11 +157,11 @@ export const scrapeJobs = async ({ keyword, location = 'global', resumeId, useCa
 
   // Check cache first if enabled
   if (useCache && !isGlobalSearch) {
-    const cachedJobs = await getCachedJobs(keyword, searchLocation);
+    const cachedJobs = await getCachedJobs(keyword, searchLocation, userId);
     
     if (cachedJobs && cachedJobs.length > 0) {
       console.log('✨ Using cached jobs to save API resources');
-      const clonedJobs = await cloneCachedJobs(cachedJobs, resumeId);
+      const clonedJobs = await cloneCachedJobs(cachedJobs, resumeId, userId);
       
       return {
         jobs: clonedJobs,
@@ -266,15 +279,22 @@ export const scrapeJobs = async ({ keyword, location = 'global', resumeId, useCa
   
   for (const job of allJobs) {
     try {
-      const existingJob = await Job.findOne({ jobUrl: job.jobUrl });
+      // Find existing job with same URL for this user
+      const query: any = { jobUrl: job.jobUrl };
+      if (userId) {
+        query.userId = userId;
+      }
+      const existingJob = await Job.findOne(query);
+      
       if (!existingJob) {
         // Extract country and region from location and add to job data
         const locationDetails = extractLocationDetails(job.location);
-        const jobData = {
+        const jobData: any = {
           ...job,
           country: locationDetails.country,
           region: locationDetails.region,
-          ...(resumeId && { resumeId })
+          ...(resumeId && { resumeId }),
+          ...(userId && { userId })
         };
         const newJob = await Job.create(jobData);
         savedJobs.push(newJob);

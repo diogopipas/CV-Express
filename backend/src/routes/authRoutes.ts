@@ -38,6 +38,28 @@ router.post('/register', async (req: Request, res: Response) => {
     });
 
     if (user) {
+      // Check if there's OAuth data in session from email onboarding
+      if ((req as any).session?.oauthData) {
+        const oauthData = (req as any).session.oauthData;
+        
+        // Save OAuth data to user
+        user.connectedEmail = oauthData.connectedEmail;
+        user.emailProvider = oauthData.emailProvider;
+        user.emailAccessToken = oauthData.accessToken; // Already encrypted
+        user.emailRefreshToken = oauthData.refreshToken; // Already encrypted
+        user.emailTokenExpiry = oauthData.tokenExpiry;
+        user.emailConnected = true;
+        
+        // Generate unique application email
+        const userIdSuffix = (user._id as any).toString().slice(-8);
+        user.applicationEmail = `applications-${userIdSuffix}@cvexpress.com`;
+        
+        await user.save();
+        
+        // Clear OAuth data from session
+        delete (req as any).session.oauthData;
+      }
+
       res.status(201).json({
         _id: user._id,
         name: user.name,
@@ -124,7 +146,7 @@ router.get('/profile', protect, async (req: Request, res: Response) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      applicationEmail: user.applicationEmail,
+      connectedEmail: user.connectedEmail,
       applicationPreferences: user.applicationPreferences,
       profile: user.profile,
       jobPreferences: user.jobPreferences,
@@ -186,7 +208,7 @@ router.patch('/profile', protect, async (req: Request, res: Response) => {
       _id: user._id,
       name: user.name,
       email: user.email,
-      applicationEmail: user.applicationEmail,
+      connectedEmail: user.connectedEmail,
       applicationPreferences: user.applicationPreferences,
       profile: user.profile,
       jobPreferences: user.jobPreferences,
@@ -292,6 +314,85 @@ router.put('/password', protect, async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Change password error:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
+  }
+});
+
+// @route   PATCH /api/auth/profile/learn
+// @desc    Update user profile with learned form data
+// @access  Private
+router.patch('/profile/learn', protect, async (req: Request, res: Response) => {
+  try {
+    const authUser = (req as AuthRequest).user;
+    if (!authUser) {
+      return res.status(401).json({ message: 'Not authorized' });
+    }
+
+    const user = await User.findById(authUser._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const { learnedData } = req.body;
+
+    if (!learnedData || typeof learnedData !== 'object') {
+      return res.status(400).json({ message: 'Invalid learned data format' });
+    }
+
+    // Smart merge learned data without overwriting existing data
+    const updates: any = {};
+
+    // Update application preferences
+    if (learnedData.phone && !user.applicationPreferences?.phone) {
+      if (!user.applicationPreferences) user.applicationPreferences = {};
+      user.applicationPreferences.phone = learnedData.phone;
+    }
+
+    if (learnedData.linkedinUrl && !user.applicationPreferences?.linkedinUrl) {
+      if (!user.applicationPreferences) user.applicationPreferences = {};
+      user.applicationPreferences.linkedinUrl = learnedData.linkedinUrl;
+    }
+
+    // Update profile information
+    if (learnedData.address && !user.profile?.location) {
+      if (!user.profile) user.profile = {};
+      user.profile.location = learnedData.address;
+    }
+
+    if (learnedData.workAuthorization && !user.jobPreferences?.workAuthorization) {
+      if (!user.jobPreferences) user.jobPreferences = {};
+      user.jobPreferences.workAuthorization = learnedData.workAuthorization;
+    }
+
+    // Store additional learned fields in a new field
+    if (!user.profile) user.profile = {};
+    if (!user.profile.learnedFields) user.profile.learnedFields = {};
+    
+    // Merge new learned fields
+    Object.keys(learnedData).forEach(key => {
+      if (!user.profile?.learnedFields?.[key]) {
+        if (user.profile && user.profile.learnedFields) {
+          user.profile.learnedFields[key] = {
+            value: learnedData[key],
+            source: 'form_learning',
+            learnedAt: new Date()
+          };
+        }
+      }
+    });
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Profile updated with learned data',
+      data: {
+        learnedFields: Object.keys(learnedData).length,
+        updatedFields: Object.keys(updates)
+      }
+    });
+  } catch (error: any) {
+    console.error('Learn profile error:', error);
     res.status(500).json({ message: error.message || 'Server error' });
   }
 });
